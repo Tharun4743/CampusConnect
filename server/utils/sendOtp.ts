@@ -38,6 +38,7 @@ export async function sendOtp(
       connectionTimeout: 5000, // 5 seconds connection timeout
       greetingTimeout: 5000,   // 5 seconds greeting timeout
       socketTimeout: 5000,     // 5 seconds socket timeout
+      family: 4,               // Force IPv4 to resolve ENETUNREACH issues on IPv4-only hosts
     });
 
     // In case of misconfiguration, verify will throw and we catch below.
