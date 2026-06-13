@@ -1,0 +1,8 @@
+{
+  "name": "Campus Connect",
+  "description": "An AI-powered Smart Job Matching and ATS Resume Scoring platform with corporate job hosting drives, recruitment workflows, and automated pipeline shortlisting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
