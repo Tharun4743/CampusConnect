@@ -30,7 +30,7 @@ import { initSocket } from "./server/socket";
 assertSecurityConfigAtStartup();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const httpServer = createServer(app);
 app.use(compression());
 app.use(express.json());
