@@ -2,10 +2,15 @@ import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
+  LogIn,
   Mail,
-  Lock
+  Lock,
+  ShieldAlert,
+  GraduationCap,
+  Award,
+  Briefcase,
+  ShieldCheck
 } from "lucide-react";
-import logo from "../../assets/logo.jpeg";
 import axiosInstance from "../../lib/axiosInstance";
 import { useAuth } from "../../context/AuthContext";
 
@@ -16,54 +21,53 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
       email: "",
       password: "",
+      role: "student",
     },
   });
+
+  const roleVal = watch("role");
 
   const onSubmit = async (data: any) => {
     try {
       const response = await axiosInstance.post("/api/auth/login", data);
 
       if (response.data?.success) {
-        if (response.data.requireOtp) {
-          const devOtpParam = response.data.data?.dev_otp ? `&dev_otp=${encodeURIComponent(response.data.data.dev_otp)}` : "";
-          const expiresAtParam = response.data.data?.expires_at ? `&expires_at=${encodeURIComponent(response.data.data.expires_at)}` : "";
-          navigate(`/verify-otp?purpose=login&email=${encodeURIComponent(data.email)}${devOtpParam}${expiresAtParam}`);
-          return;
-        }
+        toast.success("Welcome back! Login successful.");
+        const userData = response.data.data;
 
-        const body = response.data.data;
-        if (!body?.user || body.user.status !== "active") {
-          toast.error("Your account is not approved for login yet.");
-          return;
+        // Feed context
+        login(userData);
+
+        // Redirect based on status or role
+        if (userData.status === "pending" || userData.status === "rejected") {
+          navigate("/pending");
+        } else {
+          navigate(`/${userData.role}/dashboard`);
         }
-        login(body.user);
-        toast.success(response.data.message || "Login successful.");
-        navigate(body.redirectUrl || `/${body.user.role}/dashboard`);
       } else {
         toast.error(response.data?.message || "Invalid credentials entered.");
       }
     } catch (error: any) {
       console.error("Login failure:", error);
-      const message =
-        error.response?.data?.message || "Invalid email or password. Please verify your details.";
-      toast.error(message);
-      const redirectUrl = error.response?.data?.data?.redirectUrl;
-      if (redirectUrl && typeof redirectUrl === "string") {
-        navigate(redirectUrl);
-      }
+      toast.error(
+        error.response?.data?.message || "Invalid email or password. Please verify your details."
+      );
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div className="text-center">
-          <img src={logo} alt="CampusConnect" className="mx-auto h-16 w-16 object-contain mb-4" />
+          <div className="mx-auto h-12 w-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4 border border-blue-100">
+            <LogIn className="w-6 h-6" />
+          </div>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
             Campus Connect
           </h2>
@@ -74,6 +78,101 @@ export default function LoginPage() {
 
         <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
+            {/* Role Radio buttons for profile selection */}
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2.5">
+                Authentication Role
+              </label>
+              <div className="grid grid-cols-2 gap-2.5">
+                {[
+                  {
+                    value: "student",
+                    label: "Student",
+                    desc: "Candidate access",
+                    icon: GraduationCap,
+                    activeClass: "border-blue-600 bg-blue-50/30 ring-2 ring-blue-500/10",
+                    iconActiveClass: "bg-blue-100 text-blue-600",
+                    textClass: "text-blue-900"
+                  },
+                  {
+                    value: "tpo",
+                    label: "TPO Officer",
+                    desc: "Campus registrar",
+                    icon: Award,
+                    activeClass: "border-emerald-600 bg-emerald-50/30 ring-2 ring-emerald-500/10",
+                    iconActiveClass: "bg-emerald-100 text-emerald-600",
+                    textClass: "text-emerald-900"
+                  },
+                  {
+                    value: "hr",
+                    label: "HR Recruiter",
+                    desc: "Corporate openings",
+                    icon: Briefcase,
+                    activeClass: "border-violet-600 bg-violet-50/30 ring-2 ring-violet-500/10",
+                    iconActiveClass: "bg-violet-100 text-violet-600",
+                    textClass: "text-violet-900"
+                  },
+                  {
+                    value: "admin",
+                    label: "System Admin",
+                    desc: "Onboarding audit",
+                    icon: ShieldCheck,
+                    activeClass: "border-slate-800 bg-slate-50 ring-2 ring-slate-800/10",
+                    iconActiveClass: "bg-slate-900 text-white",
+                    textClass: "text-slate-900"
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isSelected = roleVal === item.value;
+                  return (
+                    <label
+                      key={item.value}
+                      id={`role-btn-${item.value}`}
+                      className={`relative flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer select-none transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 group ${
+                        isSelected
+                          ? `${item.activeClass} border-transparent`
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        value={item.value}
+                        {...register("role")}
+                        className="sr-only"
+                      />
+                      
+                      {/* Active indicator badge */}
+                      <span className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                        isSelected ? "bg-slate-905 scale-110 opacity-100 opacity-100 bg-current" : "opacity-0 scale-50"
+                      } ${
+                        item.value === "student" ? "text-blue-500" :
+                        item.value === "tpo" ? "text-emerald-500" :
+                        item.value === "hr" ? "text-violet-500" : "text-slate-800"
+                      }`} />
+
+                      <div className={`p-1.5 rounded-lg mb-1.5 transition-all duration-200 ${
+                        isSelected 
+                          ? item.iconActiveClass 
+                          : "bg-slate-50 text-slate-400 group-hover:text-slate-500 group-hover:bg-slate-100"
+                      }`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      
+                      <span className={`text-xs font-bold block tracking-tight leading-none ${
+                        isSelected ? item.textClass : "text-slate-700 font-semibold"
+                      }`}>
+                        {item.label}
+                      </span>
+                      
+                      <span className="text-[10px] text-slate-400 mt-1 block font-medium leading-none">
+                        {item.desc}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Email Field */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">
@@ -163,9 +262,12 @@ export default function LoginPage() {
 
         <div className="border-t border-slate-100 pt-6 text-center">
           <p className="text-sm text-slate-500">
-            New here?{" "}
-            <Link to="/role-select" className="font-bold text-blue-600 hover:underline">
-              Register here
+            Don't have an account?{" "}
+            <Link
+              to="/role-select"
+              className="font-bold text-blue-600 hover:underline inline-flex items-center"
+            >
+              Sign up today
             </Link>
           </p>
         </div>

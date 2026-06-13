@@ -1,138 +1,69 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import StudentNavigation from "../../components/StudentNavigation";
-import NotificationBell from "../../components/NotificationBell";
-import { useAuth } from "../../context/AuthContext";
-import { useDashboard } from "../../hooks";
-import { getStudentProfile } from "../../lib/profileService";
-import axiosInstance from "../../lib/axiosInstance";
-import {
-  UserCircle,
-  ClipboardList,
-  Star,
+import { Link } from "react-router-dom";
+import { 
+  Sparkles, 
+  ArrowRight, 
+  CheckCircle, 
+  XCircle, 
+  Activity, 
+  Monitor, 
+  MapPin, 
+  FileText,
   Calendar,
-  Gift,
-  AlertCircle,
-  Briefcase,
-  Bell,
-  ExternalLink,
-  Sparkles,
+  AlertCircle
 } from "lucide-react";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  is_read: boolean;
-  created_at: string;
-}
-
-function InterviewCountdown({ interview }: { interview: any }) {
-  const [timeLeft, setTimeLeft] = useState("");
-
-  useEffect(() => {
-    if (!interview?.scheduled_at) return;
-
-    const interval = setInterval(() => {
-      const scheduledTime = new Date(interview.scheduled_at).getTime();
-      const now = new Date().getTime();
-      const difference = scheduledTime - now;
-
-      if (difference <= 0) {
-        setTimeLeft("Started / Passed");
-        clearInterval(interval);
-      } else {
-        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-
-        let timeStr = "";
-        if (days > 0) timeStr += `${days}d `;
-        timeStr += `${hours}h ${minutes}m ${seconds}s`;
-        setTimeLeft(timeStr);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [interview]);
-
-  if (!interview) return null;
-
-  return (
-    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl p-6 shadow-sm relative overflow-hidden">
-      <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4">
-        <Calendar className="w-36 h-36" />
-      </div>
-      <div className="relative z-10 space-y-4">
-        <div className="flex justify-between items-center">
-          <span className="text-[10px] uppercase font-extrabold tracking-widest bg-white/20 px-2 py-0.5 rounded-md">
-            Upcoming Interview
-          </span>
-          <span className="text-[10px] font-bold bg-white text-blue-600 px-2 py-0.5 rounded-md">
-            {interview.round || "Technical"} Round
-          </span>
-        </div>
-        <div>
-          <h4 className="text-xl font-bold tracking-tight">{interview.company_name}</h4>
-          <p className="text-sm opacity-90">{interview.job_title}</p>
-        </div>
-        <div className="border-t border-white/20 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <p className="text-[9px] uppercase tracking-wider opacity-75">Starts In</p>
-            <p className="text-base font-mono font-bold">{timeLeft || "Calculating..."}</p>
-          </div>
-          <div className="flex gap-2">
-            {interview.mode === "online" && interview.link ? (
-              <a
-                href={interview.link}
-                target="_blank"
-                rel="noreferrer"
-                className="bg-white text-blue-600 font-semibold text-xs px-3.5 py-1.5 rounded-lg shadow-sm hover:bg-blue-50 transition-colors inline-flex items-center gap-1"
-              >
-                Join Meeting <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : (
-              <span className="bg-blue-400/20 text-white border border-white/10 font-medium text-xs px-3 py-1.5 rounded-lg truncate max-w-[150px]">
-                {interview.venue || "On Campus"}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import toast from "react-hot-toast";
+import StudentNavigation from "../../components/StudentNavigation";
+import { getStudentProfile } from "../../lib/profileService";
+import { getAuditLogs } from "../../lib/fileUploadService";
+import axiosInstance from "../../lib/axiosInstance";
 
 export default function StudentDashboardPage() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { data: dashboardData, loading: metricsLoading } = useDashboard();
-
-  const [loadingProfile, setLoadingProfile] = useState(true);
   const [profile, setProfile] = useState<any>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [aiAdvice, setAiAdvice] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
 
-  const fetchExtraData = async () => {
+  const handleAiConsultation = async () => {
     try {
-      setLoadingProfile(true);
-      const profileRes = await getStudentProfile();
-      if (profileRes?.success) setProfile(profileRes.data);
-
-      const notifRes = await axiosInstance.get("/api/notifications");
-      if (notifRes.data?.success) {
-        setNotifications(notifRes.data.data || []);
+      setAiLoading(true);
+      const res = await axiosInstance.post("/api/student/profile/ai-consult");
+      if (res.data?.success) {
+        setAiAdvice(res.data.data);
+        toast.success("AI Consultation completed successfully!");
+      } else {
+        toast.error(res.data?.message || "Failed to retrieve AI analysis.");
       }
     } catch (err: any) {
-      console.error("Dashboard failed to retrieve extra data:", err);
+      console.error("AI consult failed:", err);
+      toast.error(err.response?.data?.message || "AI keys or upstream endpoint unreachable.");
     } finally {
-      setLoadingProfile(false);
+      setAiLoading(false);
+    }
+  };
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const profileRes = await getStudentProfile();
+      if (profileRes.success) {
+        setProfile(profileRes.data);
+      }
+      const logsRes = await getAuditLogs();
+      if (logsRes.success) {
+        setLogs(logsRes.data || []);
+      }
+    } catch (err: any) {
+      console.error("Dashboard failed to retrieve live data:", err);
+      toast.error("Failed to load academic progress indexes.");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchExtraData();
+    fetchData();
   }, []);
 
   const getGreeting = () => {
@@ -142,248 +73,417 @@ export default function StudentDashboardPage() {
     return "Good Evening";
   };
 
-
-  const getPlacementBadgeStyles = (status: string) => {
-    const s = status.toLowerCase();
-    if (s.includes("placed")) return "bg-green-100 text-green-700 border-green-200";
-    if (s.includes("interview")) return "bg-purple-100 text-purple-700 border-purple-200";
-    if (s.includes("shortlisted")) return "bg-indigo-100 text-indigo-700 border-indigo-200";
-    if (s.includes("applied")) return "bg-blue-100 text-blue-700 border-blue-200";
-    return "bg-gray-100 text-gray-600 border-gray-200";
-  };
-
-  if (metricsLoading || loadingProfile) {
+  if (loading) {
     return (
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex flex-col lg:flex-row min-h-screen bg-slate-900 text-slate-100">
         <StudentNavigation />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        </main>
+        <div className="flex-1 flex items-center justify-center py-20">
+          <div className="text-center space-y-4">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="text-slate-400 font-medium text-sm font-mono">Synchronizing Placement Dashboard...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const profileCompletion = dashboardData?.metrics?.profileCompletion ?? 0;
-  const atsScore = dashboardData?.metrics?.atsScore ?? 0;
-  const eligibleJobsCount = dashboardData?.metrics?.eligibleJobsCount ?? 0;
-  const applicationsCount = dashboardData?.metrics?.applicationsCount ?? 0;
-  const shortlistedCount = dashboardData?.metrics?.shortlistedCount ?? 0;
-  const interviewCount = dashboardData?.metrics?.interviewCount ?? 0;
-  const offerCount = dashboardData?.metrics?.offerCount ?? 0;
+  // Fallback defaults
+  const comp = profile?.profileCompletion || {
+    personalInfo: 0,
+    academicInfo: 0,
+    professionalInfo: 0,
+    documentsUploaded: 0,
+    overallCompletion: 0
+  };
 
-  const placementStatusStr = (dashboardData?.placementStatus?.status as string) || "Not Applied";
-  const upcomingInterview = dashboardData?.upcomingInterviewsList?.[0] || null;
-  const recentApplications = dashboardData?.recentApplications || [];
-  const latestNotifications = notifications.slice(0, 3);
+  const personal = profile?.personalInfo || {};
+  const academic = profile?.academicInfo || {};
+  const professional = profile?.professionalInfo || {};
+  const vault = profile?.documentsVault || {};
 
-  const statsCards = [
-    { label: "Profile Completion", value: `${profileCompletion}%`, icon: UserCircle, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" },
-    { label: "Eligible Jobs", value: eligibleJobsCount, icon: Briefcase, color: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-200" },
-    { label: "Applied Jobs", value: applicationsCount, icon: ClipboardList, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200" },
-    { label: "Shortlisted Jobs", value: shortlistedCount, icon: Star, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
-    { label: "Interviews", value: interviewCount, icon: Calendar, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200" },
-    { label: "Offers Received", value: offerCount, icon: Gift, color: "text-green-600", bg: "bg-green-50", border: "border-green-200" },
+  // Build checklist items based on actual fields
+  const checklist = [
+    {
+      id: "personal_info",
+      title: "Provide Contact & Emergency Details",
+      desc: "Emergency name and phone number specified in profile settings.",
+      done: !!(personal.phoneNumber && personal.emergencyContact?.name),
+    },
+    {
+      id: "gpa_stats",
+      title: "Add standard 10th and 12th Grades",
+      desc: "Record standard grading percentages on the academic records sheet.",
+      done: !!((profile?.class10Percentage || academic.class10Percentage) > 0 && (profile?.class12Percentage || academic.class12Percentage) > 0),
+    },
+    {
+      id: "skills_list",
+      title: "Register at least 3 Professional Skills",
+      desc: "Identify your main frameworks, databases, and technologies.",
+      done: !!(professional.skills && professional.skills.length >= 3),
+    },
+    {
+      id: "resume_upload",
+      title: "Upload Primary Candidate Resume",
+      desc: "Attach your updated resume to participate in recruitment drives.",
+      done: !!(vault.resumes && vault.resumes.length > 0),
+    },
+    {
+      id: "academic_document",
+      title: "Upload Academic Proof / Certificate",
+      desc: "Save at least 1 file to verification document records.",
+      done: !!(vault.documents && vault.documents.length > 0),
+    }
   ];
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans">
       <StudentNavigation />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
-        <div className="max-w-6xl mx-auto space-y-8">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{getGreeting()}, {user?.name || "Student"}!</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Student Dashboard — {new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-              </p>
-            </div>
-            <NotificationBell />
-          </div>
 
-          {/* Placement Status & Profile Completion Alert */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-gray-500">Placement Status:</span>
-              <span className={`px-4 py-1.5 rounded-full text-xs font-bold border ${getPlacementBadgeStyles(placementStatusStr)}`}>
-                {placementStatusStr}
-              </span>
+      {/* Main Content Workspace */}
+      <main className="flex-1 p-6 lg:p-10 space-y-8 overflow-y-auto max-w-7xl mx-auto w-full">
+        
+        {/* Welcome Section Banner */}
+        <div className="bg-gradient-to-r from-slate-900 to-slate-950 rounded-3xl p-6 lg:p-8 border border-slate-800/60 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-64 h-64 bg-blue-600/5 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-900/40 rounded-full border border-blue-800/30 text-xs font-semibold text-blue-400">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Drive Season 2026</span>
             </div>
-          </div>
-
-          {profileCompletion < 75 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                <div>
-                  <p className="font-semibold text-amber-800 text-sm">Profile incomplete ({profileCompletion}%)</p>
-                  <p className="text-xs text-amber-600">Complete your profile to unlock maximum recruiter visibility</p>
-                </div>
-              </div>
-              <button
-                onClick={() => navigate("/student/profile")}
-                className="text-amber-700 font-semibold text-sm hover:underline shrink-0"
-              >
-                Complete Now &rarr;
-              </button>
-            </div>
-          )}
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {statsCards.map((card) => (
-              <div key={card.label} className={`bg-white rounded-xl p-5 border ${card.border} shadow-sm`}>
-                <div className="flex items-center justify-between">
-                  <div className={`w-10 h-10 rounded-lg ${card.bg} flex items-center justify-center`}>
-                    <card.icon className={`w-5 h-5 ${card.color}`} />
-                  </div>
-                  <span className="text-2xl font-bold text-gray-900">{card.value}</span>
-                </div>
-                <p className="text-sm text-gray-500 mt-2">{card.label}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Profile Detail Widget */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <UserCircle className="w-5 h-5 text-blue-500" />
-                <h3 className="font-bold text-gray-900 text-sm">Profile Details Strength</h3>
-              </div>
-              <span className="text-blue-600 font-bold text-sm">{profileCompletion}%</span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-gray-500 font-medium">
-                <span>Profile completion status</span>
-                <span className="font-bold text-gray-900">{profileCompletion}% completed</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${profileCompletion}%` }}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Recruiters filter profiles by academic records, technical skills, and verified resume links. Ensure all sections are updated.
+            <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-100 tracking-tight">
+              {getGreeting()}, {profile?.name || "Candidate"}!
+            </h1>
+            <p className="text-sm text-slate-400 leading-relaxed max-w-xl">
+              Welcome to Campus Connect. Build your professional profile, store transcripts, and unlock direct interviews with recruiters.
             </p>
           </div>
 
-          {/* Main Dashboard Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              {upcomingInterview ? (
-                <InterviewCountdown interview={upcomingInterview} />
-              ) : (
-                <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col justify-center items-center text-center py-8">
-                  <Calendar className="w-8 h-8 text-gray-300 mb-2" />
-                  <h4 className="font-bold text-gray-700 text-sm">No Upcoming Interviews</h4>
-                  <p className="text-xs text-gray-400 max-w-sm mt-1">
-                    You don't have any interviews scheduled. Check the Browse Jobs page to apply to active hiring drives.
-                  </p>
-                </div>
-              )}
-
-              <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-gray-900 text-sm">Recent Applications</h3>
-                  <button
-                    onClick={() => navigate("/student/offers?tab=applications")}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-                  >
-                    View All ({applicationsCount})
-                  </button>
-                </div>
-
-                {recentApplications.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400">
-                    <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">You have not applied to any job drives yet.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {recentApplications.map((app: any) => (
-                      <div key={app.id} className="py-3 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-gray-900 truncate">
-                            {app.jobDetails?.job_title}
-                          </h4>
-                          <p className="text-xs text-gray-500 truncate mt-0.5">
-                            {app.jobDetails?.company_name} &bull; {app.jobDetails?.location}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${getPlacementBadgeStyles(app.status)}`}>
-                            {app.status}
-                          </span>
-                          <span className="text-[10px] text-gray-400">
-                            {new Date(app.applied_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+          <div className="flex flex-wrap gap-4 items-center bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80 shrink-0">
+            <div className="text-left">
+              <span className="text-[10px] text-slate-500 font-mono tracking-widest block uppercase">Roll Identifier</span>
+              <span className="font-bold text-sm text-slate-200">{profile?.roll_number || "Pending"}</span>
             </div>
-
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-1.5">
-                    <Bell className="w-4 h-4 text-blue-500" />
-                    <h3 className="font-bold text-gray-900 text-sm">Latest Notifications</h3>
-                  </div>
-                  <button
-                    onClick={() => navigate("/student/notifications")}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-                  >
-                    View All
-                  </button>
-                </div>
-
-                {latestNotifications.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">No notifications yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {latestNotifications.map((n) => (
-                      <div
-                        key={n.id}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          n.is_read ? "border-gray-100 bg-gray-50/30 opacity-70" : "border-blue-100 bg-blue-50/20"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-1">
-                          <h4 className="text-xs font-bold text-gray-800 line-clamp-1">{n.title}</h4>
-                          <span className="text-[9px] text-gray-400 shrink-0">
-                            {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{n.message}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-                <div className="flex items-center gap-1.5 text-blue-700">
-                  <Sparkles className="w-4 h-4" />
-                  <h4 className="font-bold text-sm">Placement Prep Tips</h4>
-                </div>
-                <ul className="text-xs text-gray-600 space-y-2 list-disc list-inside leading-relaxed">
-                  <li>Optimize your resume formatting and save it as a clear PDF.</li>
-                  <li>Verify that your contact links are correctly formatted and active.</li>
-                  <li>Complete practice coding runs and mock placement tests.</li>
-                </ul>
-              </div>
+            <div className="w-px h-8 bg-slate-800" />
+            <div className="text-left">
+              <span className="text-[10px] text-slate-500 font-mono tracking-widest block uppercase">Academic GPA</span>
+              <span className="font-bold text-sm text-blue-400">{profile?.cgpa ? profile.cgpa.toFixed(2) : "0.00"} CGPA</span>
             </div>
           </div>
         </div>
+
+        {/* Profile Completion Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Circular Gauge Card */}
+          <div className="lg:col-span-1 bg-slate-900/50 rounded-2xl p-6 border border-slate-800/80 flex flex-col items-center justify-center text-center space-y-6 relative">
+            <span className="font-bold text-xs font-mono text-slate-400 uppercase tracking-wider self-start">Overall Completeness</span>
+            
+            <div className="relative w-40 h-40 flex items-center justify-center">
+              {/* SVG circular track */}
+              <svg className="w-full h-full transform -rotate-90">
+                <circle 
+                  cx="80" 
+                  cy="80" 
+                  r="70" 
+                  stroke="#1e293b" 
+                  strokeWidth="10" 
+                  fill="transparent" 
+                />
+                <circle 
+                  cx="80" 
+                  cy="80" 
+                  r="70" 
+                  stroke="#2563eb" 
+                  strokeWidth="10" 
+                  fill="transparent" 
+                  strokeDasharray={`${2 * Math.PI * 70}`}
+                  strokeDashoffset={`${2 * Math.PI * 70 * (1 - comp.overallCompletion / 100)}`}
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-4xl font-black text-slate-100 tracking-tight">{comp.overallCompletion}%</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Profile score</span>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <p className="text-xs text-slate-400 max-w-xs px-2">
+                {comp.overallCompletion === 100 
+                  ? "Congratulations! Your profile is verified and 100% ready for HR review."
+                  : "Complete your checklist steps to score points and make your resume visible to placement officers."
+                }
+              </p>
+              {comp.overallCompletion < 100 && (
+                <Link
+                  to="/student/profile"
+                  className="inline-flex items-center gap-1 text-xs text-blue-400 font-bold hover:text-blue-300 mt-4 transition-colors"
+                >
+                  <span>Build Profile Section</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Breakdown progress bars */}
+          <div className="lg:col-span-2 bg-slate-900/50 rounded-2xl p-6 border border-slate-800/80 flex flex-col justify-between">
+            <div className="space-y-1">
+              <h2 className="font-bold text-slate-200 text-sm">Onboarding Section Progress</h2>
+              <p className="text-xs text-slate-400">Section details are validated dynamically as fields are saved.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              
+              {/* Personal */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-slate-300">Personal Information</span>
+                  <span className="font-mono text-blue-400">{comp.personalInfo}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 rounded-full transition-all duration-1000"
+                    style={{ width: `${comp.personalInfo}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-slate-500 block">Phone, DOB, emergency contacts, city</span>
+              </div>
+
+              {/* Academic */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-slate-300">Academic Scores</span>
+                  <span className="font-mono text-emerald-400">{comp.academicInfo}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
+                    style={{ width: `${comp.academicInfo}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-slate-500 block">School percentiles, college details</span>
+              </div>
+
+              {/* Professional */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-slate-300">Professional Portfolio</span>
+                  <span className="font-mono text-amber-400">{comp.professionalInfo}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                    style={{ width: `${comp.professionalInfo}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-slate-500 block">Summary, at least 3 skills, projects</span>
+              </div>
+
+              {/* Documents */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-slate-300">Documents Uploaded</span>
+                  <span className="font-mono text-purple-400">{comp.documentsUploaded}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-500 rounded-full transition-all duration-1000"
+                    style={{ width: `${comp.documentsUploaded}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-slate-500 block">Resume files & Supplementary verification docs</span>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-800 flex flex-wrap gap-2 justify-between items-center bg-slate-900/20 p-3 rounded-lg text-xs text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-blue-400" />
+                <span>Eligibility: Must exceed 75% to unlock TPO credentials authorization</span>
+              </span>
+              <Link 
+                to="/student/profile" 
+                className="font-bold text-blue-400 hover:underline inline-flex items-center gap-1"
+              >
+                <span>Edit Profile</span>
+                <ArrowRight className="w-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Real-time AI Career Consultant */}
+        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 rounded-2xl p-6 border border-slate-800/80 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
+          
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-blue-400">
+                <Sparkles className="w-5 h-5 text-blue-400 animate-pulse" />
+                <span className="font-bold text-xs uppercase tracking-wider font-mono">Custom AI Feature</span>
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-100 tracking-tight">AI Career & Profile Advisor</h2>
+              <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+                Connect your professional details with our AI advisor powered by the secure API key you supplied. Get real-time resume audits, pinpoint profile optimizations, and receive tailored interview success formulas modeled on your credentials.
+              </p>
+            </div>
+            
+            <button
+              onClick={handleAiConsultation}
+              disabled={aiLoading}
+              className={`px-5 py-3 rounded-xl font-bold text-xs transition-all flex items-center gap-2 tracking-wide font-sans shrink-0 border ${
+                aiLoading 
+                  ? "bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed" 
+                  : "bg-blue-600 hover:bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20 active:scale-95"
+              }`}
+            >
+              {aiLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Analyzing Profile details...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Generate Career Critique</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* AI Result Viewport */}
+          {aiAdvice && (
+            <div className="mt-6 bg-slate-950/80 rounded-xl p-5 border border-slate-800/60 transition-all text-slate-300 text-xs leading-relaxed font-sans max-h-[450px] overflow-y-auto space-y-4 relative z-10">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <span className="font-semibold text-slate-200 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Official Advisor Critique
+                </span>
+                <button 
+                  onClick={() => setAiAdvice("")}
+                  className="text-[10px] text-slate-500 hover:text-slate-400 bg-slate-900 px-2 py-1 rounded"
+                >
+                  Clear advice
+                </button>
+              </div>
+              <div className="whitespace-pre-line prose prose-invert font-sans max-w-none text-slate-300">
+                {aiAdvice}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Checklist and Audit Logs Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* Left: Dynamic interactive checklist */}
+          <div className="bg-slate-900/40 rounded-2xl p-6 border border-slate-800/80 space-y-4">
+            <div>
+              <h2 className="font-bold text-slate-100 text-lg flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-blue-500" />
+                Onboarding Goals Checklist
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">Actions are tracked directly on placement records backend</p>
+            </div>
+
+            <div className="space-y-3.5 divide-y divide-slate-900">
+              {checklist.map((item, idx) => (
+                <div 
+                  key={item.id} 
+                  className={`flex items-start gap-3.5 pt-3.5 ${idx === 0 ? "pt-0 border-t-0" : ""}`}
+                >
+                  {item.done ? (
+                    <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full border border-slate-700 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <span className={`text-xs font-bold block ${item.done ? "text-slate-300 line-through decoration-slate-600" : "text-slate-100"}`}>
+                      {item.title}
+                    </span>
+                    <span className="text-[11px] text-slate-500 block leading-tight mt-0.5">{item.desc}</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.done ? "bg-emerald-950/40 text-emerald-400 border border-emerald-900/30" : "bg-slate-900 text-slate-500"}`}>
+                    {item.done ? "Completed" : "TODO"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: Document audit logs trail */}
+          <div className="bg-slate-900/40 rounded-2xl p-6 border border-slate-800/80 space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="font-bold text-slate-100 text-lg flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-purple-500" />
+                  Document Audit Trail
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">Live monitoring logs of your file vault transactions</p>
+              </div>
+              <span className="font-mono text-[10px] text-slate-500 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800">
+                {logs.length} Actions
+              </span>
+            </div>
+
+            {/* List */}
+            {logs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-12 text-slate-500 space-y-2 border border-dashed border-slate-800/80 rounded-xl bg-slate-900/20">
+                <FileText className="w-8 h-8 text-slate-700 animate-pulse" />
+                <span className="text-xs font-semibold">No transactions recorded inside audit trail.</span>
+                <p className="text-[10px] text-slate-600 text-center max-w-xs">Upload resumes or verification documents to generate database audit history tags.</p>
+              </div>
+            ) : (
+              <div className="space-y-3.5 max-h-[360px] overflow-y-auto pr-1">
+                {logs.map((log) => (
+                  <div 
+                    key={log.id || log.timestamp} 
+                    className="p-3 bg-slate-900/60 rounded-xl border border-slate-800/40 hover:border-slate-800 transition-colors flex items-start justify-between gap-3"
+                  >
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${
+                          log.action === "uploaded" ? "bg-blue-950 text-blue-400 border border-blue-900/30" :
+                          log.action === "downloaded" ? "bg-purple-950 text-purple-400 border border-purple-900/30" :
+                          log.action === "updated" ? "bg-amber-950 text-amber-400 border border-amber-900/30" :
+                          "bg-red-950 text-red-400 border border-red-900/30"
+                        }`}>
+                          {log.action}
+                        </span>
+                        <span className="text-xs font-bold text-slate-300 truncate block max-w-[160px] md:max-w-xs">
+                          {log.fileName}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 items-center">
+                        <span className="flex items-center gap-1 font-mono">
+                          <MapPin className="w-3 h-3 text-slate-600" />
+                          <span>IP: {log.ipAddress || "127.0.0.1"}</span>
+                        </span>
+                        <span className="flex items-center gap-1 max-w-[120px] truncate">
+                          <Monitor className="w-3 h-3 text-slate-600" />
+                          <span>{log.userAgent || "Browser"}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-slate-500 block font-medium">
+                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                      <span className="text-[9px] text-slate-600 block mt-1 font-mono">
+                        {new Date(log.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
       </main>
     </div>
   );

@@ -34,9 +34,7 @@ export default function TPOSignupPage() {
 
       if (response.data?.success) {
         toast.success("TPO Registration complete! Verification OTP generated.");
-        const devOtpParam = response.data.data?.dev_otp ? `&dev_otp=${encodeURIComponent(response.data.data.dev_otp)}` : "";
-        const expiresAtParam = response.data.data?.expires_at ? `&expires_at=${encodeURIComponent(response.data.data.expires_at)}` : "";
-        navigate(`/verify-otp?purpose=signup&email=${encodeURIComponent(data.email)}${devOtpParam}${expiresAtParam}`);
+        navigate(`/verify-otp?purpose=signup&email=${encodeURIComponent(data.email)}`);
       } else {
         toast.error(response.data?.message || "TPO registration failed.");
       }
@@ -49,7 +47,7 @@ export default function TPOSignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-2xl w-full space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <Link
@@ -248,8 +246,8 @@ export default function TPOSignupPage() {
                   {...register("password", {
                     required: "Password is required.",
                     minLength: {
-                      value: 8,
-                      message: "Must consist of at least 8 characters.",
+                      value: 6,
+                      message: "Must consist of at least 6 characters.",
                     },
                   })}
                   type="password"

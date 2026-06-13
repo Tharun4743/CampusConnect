@@ -1,282 +1,530 @@
 import { Router, Response } from "express";
-import { db } from "../lib/postgresql.js";
+import { db, JobPost, JobApplication, ApplicationLog } from "../lib/mongodb.js";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
 
 const router = Router();
 
-// Middleware helper checks
+// ==========================================
+// Middleware Role & Status Enforcements
+// ==========================================
+
+const activeUserCheck = (req: AuthenticatedRequest, res: Response, next: () => void) => {
+  if (!req.user || req.user.status !== "active") {
+    return res.status(403).json({
+      success: false,
+      message: "Access Denied: Your account is pending administrative or TPO approval.",
+      data: null,
+    });
+  }
+  next();
+};
+
 const hrRoleCheck = (req: AuthenticatedRequest, res: Response, next: () => void) => {
   if (!req.user || req.user.role !== "hr") {
-    return res.status(403).json({ success: false, message: "Access Denied: HR access only." });
+    return res.status(403).json({
+      success: false,
+      message: "Access Denied: This operation is restricted to HR recruiter accounts only.",
+      data: null,
+    });
   }
   next();
 };
 
 const studentRoleCheck = (req: AuthenticatedRequest, res: Response, next: () => void) => {
   if (!req.user || req.user.role !== "student") {
-    return res.status(403).json({ success: false, message: "Access Denied: Student access only." });
-  }
-  next();
-};
-
-const tpoRoleCheck = (req: AuthenticatedRequest, res: Response, next: () => void) => {
-  if (!req.user || req.user.role !== "tpo") {
-    return res.status(403).json({ success: false, message: "Access Denied: TPO access only." });
+    return res.status(403).json({
+      success: false,
+      message: "Access Denied: This operation is restricted to student candidate accounts only.",
+      data: null,
+    });
   }
   next();
 };
 
 // ==========================================
-// STUDENT JOB ROUTES
+// 👔 HR Routes
 // ==========================================
 
-// 1. GET /api/jobs/available (Get eligible jobs)
-router.get("/available", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+// 1. POST /api/jobs/create - Create job posting
+router.post("/create", authMiddleware, activeUserCheck, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
-    const userId = req.user!.userId;
-    const jobs = await db.getAvailableJobs(userId);
-    return res.status(200).json({ success: true, data: jobs });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
+    const { job_title, job_description, location, min_cgpa, allowed_branches, batch_year, salary_package, last_date } = req.body;
 
-
-
-// 3. GET /api/jobs/my-applications (Get student's applications)
-router.get("/my-applications", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.userId;
-    const applications = await db.getMyApplications(userId);
-    return res.status(200).json({ success: true, data: applications });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 4. GET /api/jobs/application/:id/timeline (Get app timeline)
-router.get("/application/:id/timeline", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.userId;
-    const timeline = await db.getApplicationTimeline(req.params.id, userId);
-    return res.status(200).json({ success: true, data: timeline });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 5. POST /api/jobs/apply/:id (Apply to job)
-router.post("/apply/:id", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.userId;
-    const jobId = req.params.id;
-
-    // Check student has primary resume
-    const primaryResume = await db.getPrimaryResume(userId);
-    if (!primaryResume) {
+    if (!job_title || job_title.trim() === "") {
       return res.status(400).json({
         success: false,
-        message: "You must upload and set a primary resume in the Document Vault before applying."
+        message: "Job title is required and cannot be empty.",
+        data: null
       });
     }
 
-    const application = await db.applyToJob(userId, jobId, primaryResume.id);
-    return res.status(201).json({ success: true, message: "Applied successfully", data: application });
+    const hrDetails = await db.getHRDetails(req.user!.userId);
+    const company_name = hrDetails?.company_name || "Unknown Corporation";
+
+    const newJob = await db.createJob({
+      hr_id: req.user!.userId,
+      company_name,
+      job_title: job_title.trim(),
+      job_description: job_description || "",
+      location: location || "On-site / Hybrid",
+      min_cgpa: min_cgpa ? parseFloat(min_cgpa) : 0,
+      allowed_branches: Array.isArray(allowed_branches) ? allowed_branches : [],
+      batch_year: batch_year ? parseInt(batch_year) : new Date().getFullYear(),
+      salary_package: salary_package || "Not Specified",
+      last_date: last_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Job drive posting published successfully.",
+      data: newJob
+    });
   } catch (error: any) {
-    return res.status(400).json({ success: false, message: error.message });
+    console.error("POST /api/jobs/create failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to publish job posting.",
+      data: null
+    });
   }
 });
 
-
-
-// ==========================================
-// HR JOB ROUTES
-// ==========================================
-
-// 8. POST /api/jobs (Create job)
-router.post("/", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
+// Patch status of generic Job
+router.patch("/status/:jobId", authMiddleware, activeUserCheck, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
-    const hrId = req.user!.userId;
-    const job = await db.createJob(hrId, req.body);
-    return res.status(201).json({ success: true, message: "Job posting created and is now live for students", data: job });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
+    const { jobId } = req.params;
+    const { status } = req.body;
 
-// Alias for POST /api/jobs/create
-router.post("/create", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const hrId = req.user!.userId;
-    const job = await db.createJob(hrId, req.body);
-    return res.status(201).json({ success: true, message: "Job posting created and is now live for students", data: job });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 9. GET /api/jobs/hr/mine (Get HR's jobs)
-router.get("/hr/mine", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const hrId = req.user!.userId;
-    const jobs = await db.getHRJobs(hrId);
-    return res.status(200).json({ success: true, data: jobs });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Alias for GET /api/jobs/hr
-router.get("/hr", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const hrId = req.user!.userId;
-    console.log("[/api/jobs/hr] Fetching jobs for HR:", hrId);
-    const jobs = await db.getHRJobs(hrId);
-    console.log("[/api/jobs/hr] Found", jobs.length, "jobs");
-    return res.status(200).json({ success: true, data: jobs });
-  } catch (error: any) {
-    console.error("[/api/jobs/hr] ERROR:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 10. PUT /api/jobs/:id (Update job)
-router.put("/:id", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const hrId = req.user!.userId;
-    const jobId = req.params.id;
-
-    // Verify job belongs to HR
-    const job = await db.getJobById(jobId, hrId);
-    if (!job || job.created_by !== hrId) {
-      return res.status(403).json({ success: false, message: "Unauthorized." });
-    }
-    if (job.status !== "pending" && job.status !== "active") {
-      return res.status(400).json({ success: false, message: "Can only update pending or active job posts." });
+    if (status !== "active" && status !== "closed") {
+      return res.status(400).json({
+        success: false,
+        message: "Status must be either 'active' or 'closed'.",
+        data: null
+      });
     }
 
-    await db.updateJob(jobId, req.body);
-    return res.status(200).json({ success: true, message: "Job updated successfully." });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 11. POST /api/jobs/:id/close (Close job)
-router.post("/:id/close", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const hrId = req.user!.userId;
-    const jobId = req.params.id;
-
-    const job = await db.getJobById(jobId, hrId);
-    if (!job || job.created_by !== hrId) {
-      return res.status(403).json({ success: false, message: "Unauthorized." });
-    }
-
-    await db.updateJobStatus(jobId, "closed");
-    return res.status(200).json({ success: true, message: "Job posting closed successfully." });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 12. GET /api/jobs/:id/applicants (Get applicants)
-router.get("/:id/applicants", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const hrId = req.user!.userId;
-    const jobId = req.params.id;
-    const applicants = await db.getJobApplicants(jobId, hrId);
-    return res.status(200).json({ success: true, data: applicants });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 13. PUT /api/jobs/:id/applicants/:appId/status (Update applicant status)
-router.put("/:id/applicants/:appId/status", authMiddleware, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const hrId = req.user!.userId;
-    const { status, note } = req.body;
-    await db.updateApplicationStatus(req.params.appId, hrId, status, note);
-    return res.status(200).json({ success: true, message: "Application status updated successfully." });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// ==========================================
-// TPO JOB APPROVAL ROUTES (Must be before /:id route)
-// ==========================================
-
-// GET /api/jobs/tpo/pending (Get pending jobs for approval)
-router.get("/tpo/pending", authMiddleware, tpoRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const allJobs = await db.getAllJobs();
-    const pendingJobs = allJobs.filter((j: any) => j.tpo_status === "pending" || (j.status === "pending" && j.tpo_status !== "approved"));
-    return res.status(200).json({ success: true, data: pendingJobs, message: "Pending jobs retrieved." });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// PATCH /api/jobs/tpo/approve/:id (Approve job)
-router.patch("/tpo/approve/:id", authMiddleware, tpoRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const jobId = req.params.id;
     const job = await db.getJobById(jobId);
     if (!job) {
-      return res.status(404).json({ success: false, message: "Job not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Job drive not found.",
+        data: null
+      });
     }
-    // Update both status and tpo_status to active/approved
-    await db.updateJobStatus(jobId, "active");
-    // Note: tpo_status is also set to approved via updateJobStatus or can be handled separately if needed
-    return res.status(200).json({ success: true, message: "Job approved successfully." });
+
+    if (job.hr_id !== req.user!.userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Access Denied: You do not own this recruitment listing.",
+        data: null
+      });
+    }
+
+    await db.updateJobStatus(jobId, status);
+
+    return res.status(200).json({
+      success: true,
+      message: `Hiring drive successfully updated to ${status}.`,
+      data: null
+    });
   } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("PATCH /api/jobs/status/:jobId failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to transition hiring status.",
+      data: null
+    });
   }
 });
 
-// PATCH /api/jobs/tpo/reject/:id (Reject job)
-router.patch("/tpo/reject/:id", authMiddleware, tpoRoleCheck, async (req: AuthenticatedRequest, res) => {
+// 2. GET /api/jobs/hr - Get all jobs created by logged-in HR
+router.get("/hr", authMiddleware, activeUserCheck, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
-    const jobId = req.params.id;
+    const jobs = await db.getJobsByHr(req.user!.userId);
+    const enrichedJobs = await Promise.all(jobs.map(async (job) => {
+      const apps = await db.getApplicationsForJob(job.id);
+      return {
+        ...job,
+        applicantCount: apps.length
+      };
+    }));
+    return res.status(200).json({
+      success: true,
+      message: "HR jobs retrieved successfully.",
+      data: enrichedJobs
+    });
+  } catch (error: any) {
+    console.error("GET /api/jobs/hr failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve HR postings.",
+      data: null
+    });
+  }
+});
+
+// 3. GET /api/jobs/applicants/:jobId - List all applicants for a job
+router.get("/applicants/:jobId", authMiddleware, activeUserCheck, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await db.getJobById(jobId);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: "Referenced job posting details not found.",
+        data: null
+      });
+    }
+
+    if (job.hr_id !== req.user!.userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Access Denied: You do not have permissions to query applications for this hiring drive.",
+        data: null
+      });
+    }
+
+    const applications = await db.getApplicationsForJob(jobId);
+
+    // Enrich applications with student profile info (CGPA, Branch, Name, Email, Resume, History Log)
+    const enrichedApplications = await Promise.all(
+      applications.map(async (app) => {
+        const studentUser = await db.findUserById(app.student_id);
+        const studentDetails = await db.getStudentDetails(app.student_id);
+        const logs = await db.getApplicationLogs(app.id);
+
+        return {
+          ...app,
+          studentName: studentUser?.name || "Unknown Candidate",
+          studentEmail: studentUser?.email || "Unknown Email",
+          cgpa: studentDetails?.cgpa || 0,
+          branch: studentDetails?.branch || "General",
+          batch_year: studentDetails?.batch_year || 2026,
+          roll_number: studentDetails?.roll_number || "N/A",
+          logs
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Retrieved ${enrichedApplications.length} applicants for this job drive.`,
+      data: enrichedApplications
+    });
+  } catch (error: any) {
+    console.error("GET /api/jobs/applicants/:jobId failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to query applicants roster.",
+      data: null
+    });
+  }
+});
+
+// 4. PATCH /api/jobs/application/update - Update application status (shortlist/reject/select)
+router.patch("/application/update", authMiddleware, activeUserCheck, hrRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { applicationId, status, note } = req.body;
+
+    if (!applicationId || !status) {
+      return res.status(400).json({
+        success: false,
+        message: "Required parameters 'applicationId' and 'status' are missing.",
+        data: null
+      });
+    }
+
+    const validStatuses = ["applied", "shortlisted", "rejected", "selected"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status parameter. Must be one of: ${validStatuses.join(", ")}`,
+        data: null
+      });
+    }
+
+    const application = await db.getApplicationById(applicationId);
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Candidate job application records not found.",
+        data: null
+      });
+    }
+
+    const job = await db.getJobById(application.job_id);
+    if (!job || job.hr_id !== req.user!.userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Access Denied: You are not authorized to update application pipelines for this company hiring drive.",
+        data: null
+      });
+    }
+
+    // Update state
+    await db.updateApplicationStatus(applicationId, status);
+
+    // Save status change log entry
+    await db.createApplicationLog({
+      application_id: applicationId,
+      status,
+      note: note || `Application status changed to "${status}" by recruiter HR authorization.`
+    });
+
+    const updatedApp = await db.getApplicationById(applicationId);
+
+    return res.status(200).json({
+      success: true,
+      message: `Applicant status transitioned to ${status} successfully.`,
+      data: updatedApp
+    });
+  } catch (error: any) {
+    console.error("PATCH /api/jobs/application/update failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to transition application status.",
+      data: null
+    });
+  }
+});
+
+// ==========================================
+// 🎓 Student Routes
+// ==========================================
+
+// 1. GET /api/jobs/available - List all available jobs
+router.get("/available", authMiddleware, activeUserCheck, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const jobs = await db.getAvailableJobs();
+    const studentDetails = await db.getStudentDetails(req.user!.userId);
+
+    const cgpa = studentDetails?.cgpa || 0;
+    const branch = studentDetails?.branch || "";
+    const batch_year = studentDetails?.batch_year || 0;
+
+    const myApplications = await db.getApplicationsByStudent(req.user!.userId);
+    const appMap = new Map(myApplications.map((app) => [app.job_id, app]));
+
+    const processedJobs = jobs.map((job) => {
+      // Evaluate metrics
+      const isCgpaEligible = cgpa >= job.min_cgpa;
+      const isBranchEligible =
+        job.allowed_branches.length === 0 ||
+        job.allowed_branches.some((b) => b.toLowerCase().trim() === branch.toLowerCase().trim());
+      const isBatchEligible = !job.batch_year || job.batch_year === batch_year;
+
+      const isEligible = isCgpaEligible && isBranchEligible && isBatchEligible;
+
+      return {
+        ...job,
+        isEligible,
+        eligibilityRules: {
+          cgpaPassed: isCgpaEligible,
+          branchPassed: isBranchEligible,
+          batchPassed: isBatchEligible,
+          studentCgpa: cgpa,
+          studentBranch: branch,
+          studentBatchYear: batch_year
+        },
+        appliedStatus: appMap.get(job.id)?.status || null,
+        applicationId: appMap.get(job.id)?.id || null
+      };
+    });
+
+    let finalJobs = processedJobs;
+    if (req.query.eligibleOnly === "true") {
+      finalJobs = processedJobs.filter((job) => job.isEligible);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Eligible available placement drives returned successfully.",
+      data: finalJobs
+    });
+  } catch (error: any) {
+    console.error("GET /api/jobs/available failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to query recruitment listings.",
+      data: null
+    });
+  }
+});
+
+// 2. POST /api/jobs/apply/:jobId - Apply to a job drive
+router.post("/apply/:jobId", authMiddleware, activeUserCheck, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { jobId } = req.params;
+
     const job = await db.getJobById(jobId);
     if (!job) {
-      return res.status(404).json({ success: false, message: "Job not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Job drive not found. It may have been taken down.",
+        data: null
+      });
     }
-    // Update status to rejected
-    await db.updateJobStatus(jobId, "rejected");
-    return res.status(200).json({ success: true, message: "Job rejected successfully." });
+
+    if (job.status !== "active") {
+      return res.status(400).json({
+        success: false,
+        message: "Application Denied: This recruiting session has closed.",
+        data: null
+      });
+    }
+
+    const existingApp = await db.getJobApplication(jobId, req.user!.userId);
+    if (existingApp) {
+      return res.status(400).json({
+        success: false,
+        message: "Application Denied: You have already applied for this opening.",
+        data: null
+      });
+    }
+
+    const studentDetails = await db.getStudentDetails(req.user!.userId);
+    if (!studentDetails) {
+      return res.status(400).json({
+        success: false,
+        message: "Application Denied: Your educational Academic Profile is empty. Setup your branch and CGPA first.",
+        data: null
+      });
+    }
+
+    // Verify constraints
+    const cgpa = studentDetails.cgpa || 0;
+    const branch = studentDetails.branch || "";
+    const batch_year = studentDetails.batch_year || 0;
+
+    const isCgpaEligible = cgpa >= job.min_cgpa;
+    const isBranchEligible =
+      job.allowed_branches.length === 0 ||
+      job.allowed_branches.some((b) => b.toLowerCase().trim() === branch.toLowerCase().trim());
+    const isBatchEligible = !job.batch_year || job.batch_year === batch_year;
+
+    if (!isCgpaEligible || !isBranchEligible || !isBatchEligible) {
+      return res.status(400).json({
+        success: false,
+        message: `Application Denied: Academic eligibility criteria not met. (Requires CGPA >= ${job.min_cgpa}, branches: ${job.allowed_branches.join(", ") || "All"})`,
+        data: null
+      });
+    }
+
+    // Locate student primary resume
+    let resumeUrl = "";
+    if (studentDetails.documentsVault?.resumes && studentDetails.documentsVault.resumes.length > 0) {
+      const primary = studentDetails.documentsVault.resumes.find((r) => r.isPrimary);
+      resumeUrl = primary ? primary.fileUrl : studentDetails.documentsVault.resumes[0].fileUrl;
+    }
+
+    const newApplication = await db.createJobApplication({
+      job_id: jobId,
+      student_id: req.user!.userId,
+      resume_url: resumeUrl || "NOT_UPLOADED"
+    });
+
+    // Save initial audit trail log
+    await db.createApplicationLog({
+      application_id: newApplication.id,
+      status: "applied",
+      note: "Success: Candidate profile applied for hiring consideration."
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Applied successfully. Your profile is shared with the recruiter.",
+      data: newApplication
+    });
   } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("POST /api/jobs/apply/:jobId failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process application request.",
+      data: null
+    });
+  }
+});
+
+// 3. GET /api/jobs/my-applications - View student applications
+router.get("/my-applications", authMiddleware, activeUserCheck, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const apps = await db.getApplicationsByStudent(req.user!.userId);
+
+    const enrichedApps = await Promise.all(
+      apps.map(async (app) => {
+        const job = await db.getJobById(app.job_id);
+        const logs = await db.getApplicationLogs(app.id);
+
+        return {
+          ...app,
+          jobDetails: job,
+          logs
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Retrieved your personal application records.",
+      data: enrichedApps
+    });
+  } catch (error: any) {
+    console.error("GET /api/jobs/my-applications failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to load application checklist.",
+      data: null
+    });
   }
 });
 
 // ==========================================
-// SHARED ROUTES
+// 🔄 Shared Route
 // ==========================================
 
-// 14. GET /api/jobs/:id (Get job by ID)
-router.get("/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+// 1. GET /api/jobs/:jobId - View job details
+router.get("/:jobId", authMiddleware, activeUserCheck, async (req: AuthenticatedRequest, res) => {
   try {
-    const userId = req.user?.userId;
-    const role = req.user?.role;
-    
-    if (role === "student" && userId) {
-      const details = await db.getJobDetailsForStudent(req.params.id, userId);
-      if (!details) {
-        return res.status(404).json({ success: false, message: "Job post not found." });
-      }
-      return res.status(200).json({ success: true, data: details });
-    } else {
-      const job = await db.getJobById(req.params.id, userId);
-      if (!job) {
-        return res.status(404).json({ success: false, message: "Job post not found." });
-      }
-      return res.status(200).json({ success: true, data: job });
+    const { jobId } = req.params;
+    const job = await db.getJobById(jobId);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: "Job posting not found.",
+        data: null
+      });
     }
+
+    let applicationDetails = null;
+    let logs: ApplicationLog[] = [];
+
+    // If candidate, query their existing application stats
+    if (req.user && req.user.role === "student") {
+      const app = await db.getJobApplication(jobId, req.user.userId);
+      if (app) {
+        applicationDetails = app;
+        logs = await db.getApplicationLogs(app.id);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Job listing parsed successfully.",
+      data: {
+        job,
+        applicationDetails,
+        logs
+      }
+    });
   } catch (error: any) {
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("GET /api/jobs/:jobId failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to load job profile details.",
+      data: null
+    });
   }
 });
 

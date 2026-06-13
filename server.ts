@@ -1,118 +1,101 @@
-import "./server/config/loadEnv.js";
 import express from "express";
 import cookieParser from "cookie-parser";
-import compression from "compression";
 import path from "path";
-import { createServer } from "http";
+import fs from "fs";
+import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import authRouter from "./server/routes/auth";
 import studentProfileRouter from "./server/routes/studentProfile";
-import studentDashboardRouter from "./server/routes/studentDashboard";
-import studentEducationRouter from "./server/routes/studentEducation";
-import jobRouter from "./server/routes/job";
-import offersRouter from "./server/routes/offers";
-import interviewsRouter from "./server/routes/interviews";
-import tpoRouter from "./server/routes/tpo";
-import adminRouter from "./server/routes/admin";
-import notificationsRouter from "./server/routes/notifications";
 import documentVaultRouter from "./server/routes/documentVault";
+import jobRouter from "./server/routes/job";
 import atsRouter from "./server/routes/ats";
-import {
-  authenticate,
-  requireActiveUser,
-  requireActiveVerifiedStudent,
-  requireSameOrigin,
-} from "./server/middleware/auth";
-import { assertSecurityConfigAtStartup, isProduction } from "./server/config/security";
-import { initializeDatabase } from "./server/lib/postgresql";
-import { initSocket } from "./server/socket";
+import { getMongoDb } from "./server/lib/mongodb";
 
-assertSecurityConfigAtStartup();
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-const httpServer = createServer(app);
-app.use(compression());
+const PORT = process.env.PORT || 3000;
+
+// Verify required environment variables on startup
+if (!process.env.JWT_SECRET) {
+  console.warn("⚠️  WARNING: JWT_SECRET environment variable is not defined. Using insecure default key.");
+}
+if (!process.env.MONGODB_URI) {
+  console.warn("⚠️  WARNING: MONGODB_URI environment variable is not defined. Falling back to in-memory database.");
+}
+
+// Connect basic express parsers
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve local uploads in development
-if (!process.env.CLOUDINARY_CLOUD_NAME) {
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-  console.log('📁 Local file serving enabled at /uploads');
-}
+// Mount Backend Controller Routing
 app.use("/api/auth", authRouter);
+app.use("/api/student", studentProfileRouter);
+app.use("/api/documents", documentVaultRouter);
+app.use("/api/jobs", jobRouter);
+app.use("/api/ats", atsRouter);
 
-// CSRF guard for all non‑public routes (applied before auth to drop early)
-app.use("/api", requireSameOrigin);
-
-// Student-only APIs: DB-refreshed session + active + email verified + student role
-app.use("/api/student/dashboard", ...requireActiveVerifiedStudent, studentDashboardRouter);
-app.use("/api/student/education", ...requireActiveVerifiedStudent, studentEducationRouter);
-app.use("/api/student", ...requireActiveVerifiedStudent, studentProfileRouter);
-
-// Multi-role APIs: active + verified (role checks inside routers)
-app.use("/api/jobs", ...authenticate, requireActiveUser, jobRouter);
-app.use("/api/offers", ...authenticate, requireActiveUser, offersRouter);
-app.use("/api/interviews", ...authenticate, requireActiveUser, interviewsRouter);
-app.use("/api/tpo", ...authenticate, requireActiveUser, tpoRouter);
-app.use("/api/admin", ...authenticate, requireActiveUser, adminRouter);
-app.use("/api/documents", ...authenticate, requireActiveUser, documentVaultRouter);
-app.use("/api/ats", ...authenticate, requireActiveUser, atsRouter);
-app.use("/api/notifications", notificationsRouter);
-
+// Base application health indicator
 app.get("/api/health", (req, res) => {
   res.json({
     status: "healthy",
     timestamp: new Date().toISOString(),
-    env: process.env.NODE_ENV || "development",
+    env: process.env.NODE_ENV || "development"
   });
 });
 
-if (!isProduction()) {
-  app.get("/api/debug/users", async (req, res) => {
-    try {
-      const { db } = await import("./server/lib/postgresql");
-      const users = await db.getAllUsers();
-      res.json({
-        success: true,
-        data: { total_user_count: users.length },
-      });
-    } catch (err: unknown) {
-      res.status(500).json({
-        success: false,
-        message: err instanceof Error ? err.message : "Error",
-      });
-    }
-  });
+// Serve uploads folder statically (Created if missing)
+const uploadsPath = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsPath)) {
+  console.log(`📁 Creating uploads directory at ${uploadsPath}...`);
+  fs.mkdirSync(uploadsPath);
 }
+app.use("/uploads", express.static(uploadsPath));
 
+// Build Vite dynamic middleware logic
 const startServer = async () => {
-  if (process.env.NODE_ENV !== "production") {
+  const distPath = path.join(process.cwd(), "dist");
+  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
+
+  if (!isProd) {
+    console.log("🛠️  Developing environment detected. Loading original Vite HMR pipeline...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
+    // Let Vite service front-end client requests
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    console.log("📦  Compiling asset environment detected. Serving bundled web structures...");
+    // Prevent direct access to backend server file and source maps
+    app.use((req, res, next) => {
+      if (req.path === "/server.js" || req.path === "/server.cjs" || req.path.endsWith(".map")) {
+        return res.status(404).end();
+      }
+      next();
+    });
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  initSocket(httpServer);
+  // Explicitly seed/trigger MongoDB database connection immediately on startup before listening
+  console.log("Initializing database connection...");
+  try {
+    await getMongoDb();
+  } catch (err) {
+    console.error("Database connection failed during boot:", err);
+  }
 
-  httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Campus Connect server listening on http://localhost:${PORT}`);
-    initializeDatabase().catch((err) => {
-      console.error("Database initialization failed:", err);
-    });
+  app.listen(Number(PORT), "0.0.0.0", () => {
+    console.log(`\n=============================================================`);
+    console.log(`🚀 CAMPUS PLACEMENT PORTAL SERVER RUNNING ON PORT ${PORT}`);
+    console.log(`🔗 Interface url: http://localhost:${PORT}`);
+    console.log(`=============================================================\n`);
   });
 };
 
 startServer().catch((error) => {
-  console.error("Server initialization failed:", error);
-  process.exit(1);
+  console.error("Critical failure during full-stack server initialization:", error);
 });

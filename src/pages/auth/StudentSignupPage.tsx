@@ -1,55 +1,39 @@
 import { useForm } from "react-hook-form";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { GraduationCap, ArrowLeft, Mail, User, BookOpen, Calendar, Key, Lock } from "lucide-react";
 import axiosInstance from "../../lib/axiosInstance";
 
 export default function StudentSignupPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const resumeEmail = searchParams.get("email") || "";
 
   const {
     register,
     handleSubmit,
     watch,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
       name: "",
-      email: resumeEmail,
+      email: "",
       roll_number: "",
-      department: "Information Technology",
-      batch_year: "2028",
+      branch: "Computer Science & Engineering",
+      batch_year: "2027",
       password: "",
       confirm_password: "",
-      college_name: "VSB",
+      college_name: "AI Studio University",
     },
   });
 
   const passwordVal = watch("password");
-
-  useEffect(() => {
-    if (resumeEmail) {
-      setValue("email", resumeEmail);
-    }
-  }, [resumeEmail, setValue]);
 
   const onSubmit = async (data: any) => {
     try {
       const response = await axiosInstance.post("/api/auth/signup/student", data);
 
       if (response.data?.success) {
-        toast.success(
-          response.data.data?.resumed
-            ? "Registration resumed. Check your email for the OTP."
-            : "Registration success! An OTP has been generated."
-        );
-        const devOtpParam = response.data.data?.dev_otp ? `&dev_otp=${encodeURIComponent(response.data.data.dev_otp)}` : "";
-        const expiresAtParam = response.data.data?.expires_at ? `&expires_at=${encodeURIComponent(response.data.data.expires_at)}` : "";
-        navigate(`/verify-otp?purpose=signup&email=${encodeURIComponent(data.email)}${devOtpParam}${expiresAtParam}`);
+        toast.success("Registration success! An OTP has been generated.");
+        navigate(`/verify-otp?purpose=signup&email=${encodeURIComponent(data.email)}`);
       } else {
         toast.error(response.data?.message || "Student registration failed.");
       }
@@ -72,7 +56,7 @@ export default function StudentSignupPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-2xl w-full space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <Link
@@ -112,7 +96,7 @@ export default function StudentSignupPage() {
                   className={`w-full text-slate-900 pl-9 pr-4 py-2 bg-slate-50 border rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
                     errors.name ? "border-red-400 focus:ring-red-500" : "border-slate-200"
                   }`}
-                  placeholder="Enter your name"
+                  placeholder="Rahul Kumar"
                 />
               </div>
               {errors.name && (
@@ -141,7 +125,7 @@ export default function StudentSignupPage() {
                   className={`w-full text-slate-900 pl-9 pr-4 py-2 bg-slate-50 border rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
                     errors.email ? "border-red-400 focus:ring-red-500" : "border-slate-200"
                   }`}
-                  placeholder="Enter your mail"
+                  placeholder="rahul.student@college.edu"
                 />
               </div>
               {errors.email && (
@@ -187,11 +171,11 @@ export default function StudentSignupPage() {
                   {...register("batch_year", { required: "Batch Graduation Year is required." })}
                   className="w-full text-slate-900 pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 >
+                  <option value="2024">2024</option>
+                  <option value="2025">2025</option>
                   <option value="2026">2026</option>
-                  <option value="2027">2026</option>
-                  <option value="2028">2027</option>
-                  <option value="2029">2028</option>
-                  <option value="2030">2029</option>
+                  <option value="2027">2027</option>
+                  <option value="2028">2028</option>
                 </select>
               </div>
             </div>
@@ -206,7 +190,7 @@ export default function StudentSignupPage() {
                   <BookOpen className="w-4 h-4" />
                 </span>
                 <select
-                  {...register("department")}
+                  {...register("branch")}
                   className="w-full text-slate-900 pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 >
                   {branches.map((b) => (
@@ -231,8 +215,8 @@ export default function StudentSignupPage() {
                   {...register("password", {
                     required: "Password is required.",
                     minLength: {
-                      value: 8,
-                      message: "Must be at least 8 characters.",
+                      value: 6,
+                      message: "Must be at least 6 characters.",
                     },
                   })}
                   type="password"

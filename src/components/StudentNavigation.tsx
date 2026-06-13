@@ -1,37 +1,24 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  UserCircle,
-  LayoutDashboard,
-  LogOut,
-  Menu,
+import { 
+  GraduationCap, 
+  FolderLock, 
+  UserCircle, 
+  LayoutDashboard, 
+  LogOut, 
+  Menu, 
   X,
+  Sparkles,
   Briefcase,
-  Calendar,
-  FileText,
-  Target,
-  Settings,
-  Sun,
-  Moon,
+  FileCheck
 } from "lucide-react";
-import logo from "../assets/logo.jpeg";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
-import { useOffers, useInterviews } from "../hooks";
 
 export default function StudentNavigation() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const { offers } = useOffers();
-  const { upcomingCount } = useInterviews();
-
-  const pendingOffersCount = Array.isArray(offers) ? offers.filter(o => o.status === "pending").length : 0;
-
-  if (!user) return null;
 
   const handleLogout = async () => {
     await logout();
@@ -39,91 +26,156 @@ export default function StudentNavigation() {
   };
 
   const navItems = [
-    { to: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard, description: "Placement metrics overview" },
-    { to: "/student/profile", label: "Profile", icon: UserCircle, description: "Personal & academic details" },
-    { to: "/student/interviews", label: "Interviews", icon: Calendar, description: "Upcoming interviews & results" },
-    { to: "/student/offers?tab=browse", label: "Jobs & Offers", icon: Briefcase, description: "Browse, track & manage offers" },
-    { to: "/student/documents", label: "Document Vault", icon: FileText, description: "Manage resumes & documents" },
-    { to: "/student/settings", label: "Settings", icon: Settings, description: "Account preferences" },
+    {
+      to: "/student/dashboard",
+      label: "Academic Dashboard",
+      icon: LayoutDashboard,
+      description: "Onboarding progress & metrics overview",
+    },
+    {
+      to: "/student/profile",
+      label: "Profile Builder",
+      icon: UserCircle,
+      description: "Personal, academic, professional builder",
+    },
+    {
+      to: "/student/documents",
+      label: "Document Vault",
+      icon: FolderLock,
+      description: "Secure resume versions & verification docs",
+    },
+    {
+      to: "/student/ats",
+      label: "ATS AI Analyzer",
+      icon: Sparkles,
+      description: "AI scoring, skill match & draft suggestions",
+    },
+    {
+      to: "/student/ats/jobs",
+      label: "Smart Job Matches",
+      icon: Briefcase,
+      description: "Hiring drives ranked by AI matching score",
+    },
+    {
+      to: "/student/jobs/my-applications",
+      label: "My Applications",
+      icon: FileCheck,
+      description: "Track your applied status and interviews",
+    },
   ];
+
+  if (!user) return null;
 
   return (
     <>
-      <header className="lg:hidden bg-white text-gray-800 h-16 px-4 flex items-center justify-between sticky top-0 z-50 border-b border-gray-200 shadow-xs">
+      {/* Mobile Top Header */}
+      <header className="lg:hidden bg-slate-900 text-white h-16 px-4 flex items-center justify-between sticky top-0 z-40 border-b border-slate-800 shadow-sm">
         <div className="flex items-center gap-2">
-          <img src={logo} alt="CampusConnect" className="w-10 h-10 rounded-lg object-contain" />
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+            <GraduationCap className="w-4 h-4" />
+          </div>
           <div>
-            <div className="text-gray-900 font-bold text-base tracking-tight">CampusConnect</div>
-            <div className="text-gray-500 text-[10px] font-medium">Student Portal</div>
+            <span className="font-extrabold text-xs tracking-wider uppercase block text-blue-400">Campus placement</span>
+            <span className="font-bold text-sm text-slate-100 block -mt-1">Student Suite</span>
           </div>
         </div>
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 rounded-lg hover:bg-gray-50 text-sky-500">
+        
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+        >
           {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </header>
 
-      <aside className={`fixed left-0 top-0 h-screen w-72 flex flex-col bg-white border-r border-gray-200 z-40 overflow-y-auto overflow-x-hidden transform lg:static lg:h-auto lg:translate-x-0 transition-transform duration-200 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="px-5 py-5 border-b border-gray-200 flex items-center gap-3">
-          <img src={logo} alt="CampusConnect" className="w-12 h-12 rounded-xl object-contain shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className="text-gray-900 font-bold text-base leading-tight tracking-tight truncate">CampusConnect</span>
-            <span className="text-gray-500 text-xs leading-tight mt-0.5">Student Portal</span>
+      {/* Sidebar Navigation */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-40 w-64 bg-slate-950 text-slate-200 border-r border-slate-800/80 transform lg:translate-x-0 transition-transform duration-200 ease-in-out flex flex-col justify-between
+        ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
+        lg:sticky lg:h-screen lg:top-0
+      `}>
+        {/* Top Header details */}
+        <div>
+          <div className="p-6 border-b border-slate-900 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="font-bold text-xs tracking-wider uppercase block text-blue-500">Placement Hub</span>
+              <span className="font-extrabold text-base text-slate-100 block -mt-0.5">Student Suite</span>
+            </div>
           </div>
-        </div>
 
-        <div className="px-4 py-3 mx-4 my-4 bg-sky-50 border border-sky-200 rounded-xl flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-sky-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
-            {user.name?.charAt(0)?.toUpperCase() || "?"}
+          {/* User Preview */}
+          <div className="p-5 mx-3 my-4 bg-slate-900/60 rounded-xl border border-slate-800/50 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-xs text-blue-400 block tracking-wider uppercase">Active Candidate</span>
+              <span className="font-bold text-slate-100 block text-sm truncate leading-tight mt-0.5">{user.name}</span>
+              <span className="text-[10px] text-slate-500 truncate block font-mono">{user.email}</span>
+            </div>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sky-600 text-[10px] font-semibold uppercase tracking-widest leading-none mb-0.5">STUDENT</span>
-            <span className="text-gray-900 font-semibold text-sm leading-tight truncate">{user.name}</span>
-            <span className="text-gray-500 text-xs leading-tight truncate">{user.email}</span>
-          </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto py-1">
-          {navItems.map((item) => {
-            const itemPath = item.to.split("?")[0];
-            const isActive = location.pathname === itemPath || location.pathname.startsWith(itemPath + "/");
-            const Icon = item.icon;
-
-            let badgeCount = 0;
-            if (itemPath === "/student/offers") badgeCount = pendingOffersCount;
-            if (itemPath === "/student/interviews") badgeCount = upcomingCount;
-
-            return (
-              <div key={item.to} className="px-3 mb-1">
-                <Link to={item.to} onClick={() => setMobileMenuOpen(false)} className={`flex items-start gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive ? "bg-sky-50 text-sky-600 border-l-4 border-sky-500" : "text-gray-600 hover:bg-gray-50 border-l-4 border-transparent"}`}>
-                  <Icon className={`mt-0.5 shrink-0 ${isActive ? "text-sky-600" : "text-gray-600"}`} size={18} />
-                  <div className="flex flex-col min-w-0">
-                    <span className={`text-sm leading-tight block truncate ${isActive ? "font-bold text-sky-600" : "font-medium text-gray-600"}`}>{item.label}</span>
-                    <span className={`text-xs leading-tight mt-0.5 block truncate ${isActive ? "text-sky-500" : "text-gray-500"}`}>{item.description}</span>
-                  </div>
-                  {badgeCount > 0 && (
-                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ml-auto shrink-0 bg-sky-500 text-white`}>
-                      {badgeCount}
+          {/* Navigation Links */}
+          <nav className="px-3 mt-4 space-y-1">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.to;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`
+                    w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all group relative cursor-pointer
+                    ${isActive 
+                      ? "bg-blue-600/90 text-white font-bold shadow-md shadow-blue-600/10" 
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-900/60"
+                    }
+                  `}
+                >
+                  <Icon className={`w-5 h-5 shrink-0 ${isActive ? "text-white" : "text-slate-500 group-hover:text-blue-400 transition-colors"}`} />
+                  <div>
+                    <span className="block text-sm leading-tight">{item.label}</span>
+                    <span className={`block text-[10px] font-medium leading-none mt-1 ${isActive ? "text-blue-100" : "text-slate-500"}`}>
+                      {item.description}
                     </span>
+                  </div>
+                  {isActive && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                   )}
                 </Link>
-              </div>
-            );
-          })}
+              );
+            })}
+          </nav>
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-200 flex flex-col gap-2 mt-auto">
-          <button onClick={toggleTheme} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors text-sm">
-            {theme === "dark" ? <Sun size={16} className="text-gray-600" /> : <Moon size={16} />}
-            <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
-          </button>
-          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors text-sm">
-            <LogOut size={16} />
-            <span>Logout</span>
+        {/* Footer actions */}
+        <div className="p-4 border-t border-slate-900 space-y-3">
+          <div className="px-3 py-2 bg-blue-950/20 rounded-lg border border-blue-900/40 text-[10px] text-blue-300 font-medium flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span>Profile Locker Protected</span>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-800 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-900 transition-all cursor-pointer"
+          >
+            <LogOut className="w-4 h-4 text-slate-500" />
+            <span>Sign Out Session</span>
           </button>
         </div>
       </aside>
 
-      {mobileMenuOpen && <div onClick={() => setMobileMenuOpen(false)} className="fixed inset-0 bg-black/10 backdrop-blur-xs z-30 lg:hidden" />}
+      {/* Main Container Overlay for mobile sidebar */}
+      {mobileMenuOpen && (
+        <div 
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-30 lg:hidden"
+        />
+      )}
     </>
   );
 }

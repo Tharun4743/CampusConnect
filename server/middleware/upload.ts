@@ -2,7 +2,7 @@ import multer from "multer";
 import { Request, Response, NextFunction } from "express";
 import { Readable } from "stream";
 import path from "path";
-import { cloudinary, isCloudinaryConfigured, uploadFile, deleteFile } from "../utils/cloudinaryHelper.js";
+import { cloudinary, isCloudinaryConfigured } from "../utils/cloudinaryHelper.js";
 
 // Setup multer memory storage (avoids local disk writes, completely portable in serverless containers)
 const storage = multer.memoryStorage();
@@ -32,41 +32,80 @@ export async function uploadFileToCloudinary(
   fileType: "resume" | "document",
   filename: string
 ): Promise<{ publicId: string; secureUrl: string; bytes: number }> {
+  const sanitized = sanitizeFilename(filename);
   const folder = fileType === "resume" ? "resumes" : "documents";
-  const ext = path.extname(filename).toLowerCase();
-  
-  const mimeMap: Record<string, string> = {
-    ".pdf": "application/pdf",
-    ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".xls": "application/vnd.ms-excel",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".zip": "application/zip",
-  };
-  const mimeType = mimeMap[ext] || "application/octet-stream";
 
-  const result = await uploadFile(fileBuffer, {
-    folder,
-    filename,
-    mimeType
+  if (!isCloudinaryConfigured) {
+    // Graceful fallback for preview testing: base64 Data URI structures
+    const mimeMap: Record<string, string> = {
+      ".pdf": "application/pdf",
+      ".doc": "application/msword",
+      ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ".xls": "application/vnd.ms-excel",
+      ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".png": "image/png",
+      ".zip": "application/zip",
+    };
+    const ext = path.extname(filename).toLowerCase();
+    const mime = mimeMap[ext] || "application/octet-stream";
+    const base64 = fileBuffer.toString("base64");
+    const safeDataUrl = `data:${mime};base64,${base64}`;
+
+    return {
+      publicId: `sandbox_env/${folder}/${sanitized}`,
+      secureUrl: safeDataUrl,
+      bytes: fileBuffer.length,
+    };
+  }
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: `campus-placement/${folder}`,
+        public_id: sanitized.split(".")[0],
+        resource_type: "auto",
+      },
+      (error, result) => {
+        if (error) {
+          console.error("Cloudinary Upload Stream Error:", error);
+          return reject(error);
+        }
+        if (!result) return reject(new Error("Cloudinary returned a blank response asset."));
+        resolve({
+          publicId: result.public_id,
+          secureUrl: result.secure_url,
+          bytes: result.bytes,
+        });
+      }
+    );
+
+    const stream = new Readable();
+    stream.push(fileBuffer);
+    stream.push(null);
+    stream.pipe(uploadStream);
   });
-
-  return {
-    publicId: result.publicId,
-    secureUrl: result.url,
-    bytes: result.size
-  };
 }
 
 /**
  * Delete asset from Cloudinary (ignored gracefully if running in local sandbox fallback)
  */
 export async function deleteFileFromCloudinary(publicId: string): Promise<any> {
-  await deleteFile(publicId);
-  return { result: "ok" };
+  if (!isCloudinaryConfigured || publicId.startsWith("sandbox_env/")) {
+    console.log(`Sandbox environment: mock deleting file publicId "${publicId}".`);
+    return { result: "ok" };
+  }
+
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.destroy(publicId, (error, result) => {
+      if (error) {
+        console.error("Cloudinary Delete Error:", error);
+        return reject(error);
+      }
+      resolve(result);
+    });
+  });
 }
 
 /**
