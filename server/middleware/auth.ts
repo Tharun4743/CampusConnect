@@ -163,8 +163,16 @@ export function requireSameOrigin(req: AuthenticatedRequest, res: Response, next
   if (!origin) return next();
   const host = req.get("host");
   const protocol = req.protocol;
-  const allowed = (process.env.APP_URL || `${protocol}://${host}`).replace(/\/+$/, "");
-  if (origin !== allowed) {
+
+  const allowedUrls = new Set<string>();
+  if (process.env.APP_URL) allowedUrls.add(process.env.APP_URL.replace(/\/+$/, ""));
+  if (process.env.CLIENT_URL) allowedUrls.add(process.env.CLIENT_URL.replace(/\/+$/, ""));
+  allowedUrls.add(`${protocol}://${host}`.replace(/\/+$/, ""));
+
+  const cleanedOrigin = origin.replace(/\/+$/, "");
+
+  if (!allowedUrls.has(cleanedOrigin)) {
+    console.error(`[CSRF Check Failed] Request origin not allowed. Cleaned Origin: "${cleanedOrigin}". Allowed origins:`, Array.from(allowedUrls));
     return res.status(403).json({
       success: false,
       message: "Request origin not allowed.",

@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { db } from "../lib/postgresql.js";
-import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
+import { AuthenticatedRequest } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -12,7 +12,7 @@ const tpoCheck = (req: AuthenticatedRequest, res: Response, next: () => void) =>
 };
 
 // GET /api/tpo/dashboard
-router.get("/dashboard", authMiddleware, tpoCheck, async (req: AuthenticatedRequest, res) => {
+router.get("/dashboard", tpoCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const allJobs = await db.getAllJobs();
     const pendingJobs = allJobs.filter((j: any) => j.tpo_status === "pending" || j.status === "pending");
@@ -47,7 +47,7 @@ router.get("/dashboard", authMiddleware, tpoCheck, async (req: AuthenticatedRequ
 });
 
 // GET /api/tpo/students
-router.get("/students", authMiddleware, tpoCheck, async (req: AuthenticatedRequest, res) => {
+router.get("/students", tpoCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const { search, branch, status } = req.query as Record<string, string>;
     let students = await db.getStudentsWithDetails();
@@ -71,7 +71,7 @@ router.get("/students", authMiddleware, tpoCheck, async (req: AuthenticatedReque
 });
 
 // PUT /api/tpo/students/:userId/status
-router.put("/students/:userId/status", authMiddleware, tpoCheck, async (req: AuthenticatedRequest, res) => {
+router.put("/students/:userId/status", tpoCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const { userId } = req.params;
     const { status } = req.body;
@@ -86,7 +86,7 @@ router.put("/students/:userId/status", authMiddleware, tpoCheck, async (req: Aut
 });
 
 // PATCH /api/tpo/students/:userId/status — legacy
-router.patch("/students/:userId/status", authMiddleware, tpoCheck, async (req: AuthenticatedRequest, res) => {
+router.patch("/students/:userId/status", tpoCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const { userId } = req.params;
     const { status } = req.body;
@@ -101,7 +101,7 @@ router.patch("/students/:userId/status", authMiddleware, tpoCheck, async (req: A
 });
 
 // GET /api/tpo/reports/placement
-router.get("/reports/placement", authMiddleware, tpoCheck, async (req: AuthenticatedRequest, res) => {
+router.get("/reports/placement", tpoCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const allJobs = await db.getAllJobs();
     const allApplications: any[] = [];
@@ -164,7 +164,7 @@ router.get("/reports/placement", authMiddleware, tpoCheck, async (req: Authentic
 });
 
 // GET /api/tpo/applications
-router.get("/applications", authMiddleware, tpoCheck, async (req: AuthenticatedRequest, res) => {
+router.get("/applications", tpoCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const { status: statusFilter, jobId } = req.query as Record<string, string>;
     const allJobs = await db.getAllJobs();
