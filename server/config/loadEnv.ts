@@ -1,9 +1,9 @@
 import dotenv from "dotenv";
 import path from "path";
 
-// Keep compatible with CJS build (dist/server.cjs via esbuild).
-// In CJS, __dirname is available.
-const envPath = path.resolve(__dirname, "../../.env");
+// Use process.cwd() to consistently find .env at the project root
+// regardless of whether running from src or from the dist bundle.
+const envPath = path.resolve(process.cwd(), ".env");
 
 
 /**

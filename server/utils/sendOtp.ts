@@ -30,11 +30,13 @@ export async function sendOtp(
     const transporter = nodemailer.createTransport({
       host: smtpHost,
       port: smtpPort || 587,
-      secure: false,
+      secure: smtpPort === 465, // true for port 465, false for other ports
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
+      // Force IPv4 to prevent ENETUNREACH errors on Render/IPv6 environments
+      family: 4,
     });
 
     // In case of misconfiguration, verify will throw and we catch below.
