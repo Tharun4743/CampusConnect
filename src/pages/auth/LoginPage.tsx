@@ -44,6 +44,10 @@ export default function LoginPage() {
       console.error("Google login error:", error);
       const message = error.response?.data?.message || "Google authentication failed.";
       toast.error(message);
+      const redirectUrl = error.response?.data?.data?.redirectUrl;
+      if (redirectUrl && typeof redirectUrl === "string") {
+        navigate(redirectUrl);
+      }
     }
   };
 
@@ -74,6 +78,10 @@ export default function LoginPage() {
       toast.dismiss("google-register");
       console.error("Google registration error:", error);
       toast.error(error.response?.data?.message || "Google registration failed.");
+      const redirectUrl = error.response?.data?.data?.redirectUrl;
+      if (redirectUrl && typeof redirectUrl === "string") {
+        navigate(redirectUrl);
+      }
     }
   };
 

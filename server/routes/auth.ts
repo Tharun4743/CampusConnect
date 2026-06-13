@@ -651,7 +651,7 @@ router.post("/google-login", async (req, res) => {
         email,
         password_hash: "google-oauth-managed-account", // Safe dummy placeholder
         role,
-        status: "active", // Set active directly to bypass approval queues as requested
+        status: "pending", // Newly registered accounts must be approved
         email_verified: true,
         college_name: role === "hr" ? "HR Partner" : "VSB",
       });
@@ -673,34 +673,17 @@ router.post("/google-login", async (req, res) => {
         });
       }
 
-      // Issue httpOnly session cookie
-      setAuthCookie(res, newUser);
+      const approvalMsg =
+        role === "student"
+          ? "Your account is awaiting TPO approval. Sign in is enabled only after a placement officer approves your profile."
+          : "Your account is awaiting administrator approval. Sign in is enabled only after approval.";
 
-      let redirectUrl = "/dashboard";
-      if (newUser.role === "student") redirectUrl = "/student/dashboard";
-      else if (newUser.role === "tpo") redirectUrl = "/tpo/dashboard";
-      else if (newUser.role === "hr") redirectUrl = "/hr/dashboard";
-
-      return res.status(200).json({
-        success: true,
-        user: {
-          id: newUser.id,
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          status: newUser.status
-        },
+      return res.status(403).json({
+        success: false,
+        message: approvalMsg,
         data: {
-          user: {
-            id: newUser.id,
-            name: newUser.name,
-            email: newUser.email,
-            role: newUser.role,
-            status: newUser.status
-          },
-          redirectUrl
-        },
-        message: "Google Account registered and logged in successfully!"
+          redirectUrl: `${PENDING_APPROVAL_PATH}?email=${encodeURIComponent(email)}`
+        }
       });
     }
 
