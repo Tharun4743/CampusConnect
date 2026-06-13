@@ -631,11 +631,76 @@ router.post("/google-login", async (req, res) => {
     const user = await db.findUserByEmail(email);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "user_not_found",
-        message: "No account found with this Google email. Please register first.",
-        data: { email, name }
+      const { role } = req.body;
+      if (!role) {
+        return res.status(200).json({
+          success: false,
+          roleRequired: true,
+          message: "Select your role to complete Google registration.",
+          data: { email, name }
+        });
+      }
+
+      if (!["student", "tpo", "hr"].includes(role)) {
+        return res.status(400).json({ success: false, message: "Invalid role specified." });
+      }
+
+      // Create new user automatically with Google verified email
+      const newUser = await db.createUser({
+        name,
+        email,
+        password_hash: "google-oauth-managed-account", // Safe dummy placeholder
+        role,
+        status: "active", // Set active directly to bypass approval queues as requested
+        email_verified: true,
+        college_name: role === "hr" ? "HR Partner" : "VSB",
+      });
+
+      // Insert role-specific detail rows with safe default values
+      if (role === "student") {
+        await db.createStudentDetails({
+          user_id: newUser.id,
+          roll_number: "NOT_SET",
+          department: "Computer Science & Engineering",
+          batch_year: 2028,
+        });
+      } else if (role === "hr") {
+        await db.createHRDetails({
+          user_id: newUser.id,
+          company_name: "Not Configured",
+          designation: "Recruiter",
+          linkedin_url: null,
+        });
+      }
+
+      // Issue httpOnly session cookie
+      setAuthCookie(res, newUser);
+
+      let redirectUrl = "/dashboard";
+      if (newUser.role === "student") redirectUrl = "/student/dashboard";
+      else if (newUser.role === "tpo") redirectUrl = "/tpo/dashboard";
+      else if (newUser.role === "hr") redirectUrl = "/hr/dashboard";
+
+      return res.status(200).json({
+        success: true,
+        user: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          status: newUser.status
+        },
+        data: {
+          user: {
+            id: newUser.id,
+            name: newUser.name,
+            email: newUser.email,
+            role: newUser.role,
+            status: newUser.status
+          },
+          redirectUrl
+        },
+        message: "Google Account registered and logged in successfully!"
       });
     }
 

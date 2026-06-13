@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -13,6 +13,8 @@ import { useAuth } from "../../context/AuthContext";
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [googleCredential, setGoogleCredential] = useState<string | null>(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
 
   const handleGoogleSignInResponse = async (response: any) => {
     try {
@@ -30,29 +32,48 @@ export default function LoginPage() {
         } else {
           toast.error("User details missing in Google login response.");
         }
+      } else if (res.data?.roleRequired) {
+        // Unregistered user - prompt for role via modal overlay
+        setGoogleCredential(credential);
+        setShowRoleModal(true);
       } else {
         toast.error(res.data?.message || "Google sign-in failed.");
       }
     } catch (error: any) {
       toast.dismiss("google-login");
       console.error("Google login error:", error);
-      
-      const resData = error.response?.data;
-      if (resData?.error === "user_not_found" && resData?.data?.email) {
-        toast.success("Proceeding to complete registration...");
-        const email = resData.data.email;
-        const name = resData.data.name || "";
-        navigate(`/role-select?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`);
-        return;
-      }
-
-      const message = error.response?.data?.message || "Google authentication failed. Make sure you are registered.";
+      const message = error.response?.data?.message || "Google authentication failed.";
       toast.error(message);
-      
-      const redirectUrl = error.response?.data?.data?.redirectUrl;
-      if (redirectUrl && typeof redirectUrl === "string") {
-        navigate(redirectUrl);
+    }
+  };
+
+  const handleSelectRoleForGoogleRegister = async (selectedRole: string) => {
+    try {
+      setShowRoleModal(false);
+      if (!googleCredential) return;
+      toast.loading("Completing registration...", { id: "google-register" });
+      const res = await axiosInstance.post("/api/auth/google-login", {
+        credential: googleCredential,
+        role: selectedRole,
+      });
+      toast.dismiss("google-register");
+
+      if (res.data?.success) {
+        const loggedInUser = res.data.user;
+        if (loggedInUser) {
+          login(loggedInUser);
+          toast.success("Google Account registered and logged in successfully!");
+          navigate(res.data.data?.redirectUrl || `/${loggedInUser.role}/dashboard`);
+        } else {
+          toast.error("User details missing in Google registration response.");
+        }
+      } else {
+        toast.error(res.data?.message || "Registration failed.");
       }
+    } catch (error: any) {
+      toast.dismiss("google-register");
+      console.error("Google registration error:", error);
+      toast.error(error.response?.data?.message || "Google registration failed.");
     }
   };
 
@@ -258,6 +279,47 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+
+      {showRoleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-slate-900">
+          <div className="bg-white max-w-md w-full rounded-2xl shadow-xl border border-slate-100 p-6 space-y-6 text-center transform scale-100 transition-transform duration-300">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">Choose Your Access Role</h3>
+              <p className="mt-2 text-sm text-slate-500 leading-relaxed font-medium">
+                We couldn't find an account for your Google email. Select a portal access role to create your new account instantly:
+              </p>
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleSelectRoleForGoogleRegister("student")}
+                className="w-full py-3 px-4 border border-blue-200 rounded-xl bg-blue-50 text-blue-700 font-bold hover:bg-blue-100 transition-colors text-sm cursor-pointer"
+              >
+                🎓 Student Core Portal
+              </button>
+              <button
+                onClick={() => handleSelectRoleForGoogleRegister("tpo")}
+                className="w-full py-3 px-4 border border-sky-200 rounded-xl bg-sky-50 text-sky-700 font-bold hover:bg-sky-100 transition-colors text-sm cursor-pointer"
+              >
+                🏫 Training & Placement Officer (TPO)
+              </button>
+              <button
+                onClick={() => handleSelectRoleForGoogleRegister("hr")}
+                className="w-full py-3 px-4 border border-indigo-200 rounded-xl bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100 transition-colors text-sm cursor-pointer"
+              >
+                💼 Corporate HR / Recruiter
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setShowRoleModal(false)}
+              className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors hover:underline pt-2 block mx-auto cursor-pointer"
+            >
+              Cancel Sign In
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
