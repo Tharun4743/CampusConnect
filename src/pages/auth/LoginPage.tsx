@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -12,6 +13,70 @@ import { useAuth } from "../../context/AuthContext";
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogleSignInResponse = async (response: any) => {
+    try {
+      const { credential } = response;
+      toast.loading("Signing in with Google...", { id: "google-login" });
+      const res = await axiosInstance.post("/api/auth/google-login", { credential });
+      toast.dismiss("google-login");
+
+      if (res.data?.success) {
+        const loggedInUser = res.data.user;
+        if (loggedInUser) {
+          login(loggedInUser);
+          toast.success("Login successful!");
+          navigate(res.data.data?.redirectUrl || `/${loggedInUser.role}/dashboard`);
+        } else {
+          toast.error("User details missing in Google login response.");
+        }
+      } else {
+        toast.error(res.data?.message || "Google sign-in failed.");
+      }
+    } catch (error: any) {
+      toast.dismiss("google-login");
+      console.error("Google login error:", error);
+      const message = error.response?.data?.message || "Google authentication failed. Make sure you are registered.";
+      toast.error(message);
+      
+      const redirectUrl = error.response?.data?.data?.redirectUrl;
+      if (redirectUrl && typeof redirectUrl === "string") {
+        navigate(redirectUrl);
+      }
+    }
+  };
+
+  const initializeGoogleSignIn = () => {
+    const google = (window as any).google;
+    const container = document.getElementById("google-signin-button");
+    if (google && container) {
+      google.accounts.id.initialize({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "1008719970978-gp05ct427r7f551p0c0a87f551.apps.googleusercontent.com",
+        callback: handleGoogleSignInResponse,
+      });
+      google.accounts.id.renderButton(container, {
+        theme: "outline",
+        size: "large",
+        width: "382",
+        text: "continue_with"
+      });
+    }
+  };
+
+  useEffect(() => {
+    const existingScript = document.getElementById("google-gsi-client");
+    if (!existingScript) {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.id = "google-gsi-client";
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogleSignIn;
+      document.body.appendChild(script);
+    } else {
+      initializeGoogleSignIn();
+    }
+  }, []);
 
   const {
     register,
@@ -160,6 +225,19 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-100"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-2 text-slate-400 font-semibold">Or continue with</span>
+          </div>
+        </div>
+
+        <div className="flex justify-center">
+          <div id="google-signin-button" className="w-full max-w-[382px] min-h-[44px]"></div>
+        </div>
 
         <div className="border-t border-slate-100 pt-6 text-center">
           <p className="text-sm text-slate-500">

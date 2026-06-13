@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import jwt from "jsonwebtoken";
+import axios from "axios";
 import { db, User } from "../lib/postgresql.js";
 import { hashPassword, comparePassword } from "../utils/hashPassword.js";
 import { sendOtp } from "../utils/sendOtp.js";
@@ -593,6 +594,101 @@ router.post("/login", loginRateLimit, async (req, res) => {
       success: false,
       message: error.message || "Internal server error occurred.",
       data: null,
+    });
+  }
+});
+
+// ==========================================
+// 4.5 GOOGLE LOGIN
+// ==========================================
+router.post("/google-login", async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ success: false, message: "Credential token is required." });
+    }
+
+    // Decode and verify the ID token via Google's tokeninfo API
+    const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`;
+    const googleResponse = await axios.get(tokenInfoUrl);
+
+    if (googleResponse.status !== 200) {
+      return res.status(400).json({ success: false, message: "Failed to verify Google credential." });
+    }
+
+    const payload = googleResponse.data;
+    const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    if (googleClientId && payload.aud !== googleClientId) {
+      return res.status(400).json({ success: false, message: "Invalid audience in Google credential." });
+    }
+
+    const email = payload.email?.toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email not found in Google credential." });
+    }
+
+    const name = payload.name || "Google User";
+    const user = await db.findUserByEmail(email);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "user_not_found",
+        message: "No account found with this Google email. Please register first.",
+        data: { email, name }
+      });
+    }
+
+    // Since they logged in via Google OAuth, mark email as verified if it is not already.
+    if (!user.email_verified) {
+      await db.updateUserEmailVerified(user.id, true, user.email);
+    }
+
+    // Assert login checks (e.g. pending/rejected accounts, incomplete signups)
+    const loginGate = await assertPasswordLoginAllowed(user);
+    if (loginGate.ok === false) {
+      return res.status(loginGate.status).json({
+        success: false,
+        message: loginGate.message,
+        data: { redirectUrl: loginGate.redirectUrl ?? null }
+      });
+    }
+
+    // Set HTTP-only auth token cookie
+    setAuthCookie(res, user);
+
+    let redirectUrl = "/dashboard";
+    if (user.role === "student") redirectUrl = "/student/dashboard";
+    else if (user.role === "tpo") redirectUrl = "/tpo/dashboard";
+    else if (user.role === "hr") redirectUrl = "/hr/dashboard";
+    else if (user.role === "admin") redirectUrl = "/admin/dashboard";
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status
+      },
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status
+        },
+        redirectUrl
+      },
+      message: "Google Login successful."
+    });
+  } catch (error: any) {
+    console.error("Google authentication route error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.response?.data?.error_description || error.message || "Failed to log in with Google."
     });
   }
 });
