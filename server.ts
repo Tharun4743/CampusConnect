@@ -63,10 +63,11 @@ process.on("uncaughtException", (error: Error) => {
   gracefulShutdown("UNCAUGHT_EXCEPTION");
 });
 
-// Security Headers (configured to not break React frontend scripts/styles)
+// Security Headers (configured to not break React frontend scripts/styles and Google OAuth popups)
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
 }));
 
 // Rate limiting for API requests
