@@ -9,6 +9,7 @@ export default function StudentSignupPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const resumeEmail = searchParams.get("email") || "";
+  const resumeName = searchParams.get("name") || "";
 
   const {
     register,
@@ -18,7 +19,7 @@ export default function StudentSignupPage() {
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
-      name: "",
+      name: resumeName,
       email: resumeEmail,
       roll_number: "",
       department: "Information Technology",
@@ -35,7 +36,10 @@ export default function StudentSignupPage() {
     if (resumeEmail) {
       setValue("email", resumeEmail);
     }
-  }, [resumeEmail, setValue]);
+    if (resumeName) {
+      setValue("name", resumeName);
+    }
+  }, [resumeEmail, resumeName, setValue]);
 
   const onSubmit = async (data: any) => {
     try {

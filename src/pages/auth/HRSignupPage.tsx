@@ -1,21 +1,26 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Briefcase, ArrowLeft, Mail, User, ShieldAlert, Phone, Globe, Lock } from "lucide-react";
 import axiosInstance from "../../lib/axiosInstance";
 
 export default function HRSignupPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const googleEmail = searchParams.get("email") || "";
+  const googleName = searchParams.get("name") || "";
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
-      name: "",
-      email: "",
+      name: googleName,
+      email: googleEmail,
       company_name: "",
       designation: "",
       phone: "",
@@ -27,6 +32,15 @@ export default function HRSignupPage() {
   });
 
   const passwordVal = watch("password");
+
+  useEffect(() => {
+    if (googleEmail) {
+      setValue("email", googleEmail);
+    }
+    if (googleName) {
+      setValue("name", googleName);
+    }
+  }, [googleEmail, googleName, setValue]);
 
   const onSubmit = async (data: any) => {
     try {

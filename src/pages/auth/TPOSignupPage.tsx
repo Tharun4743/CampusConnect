@@ -1,21 +1,26 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Award, ArrowLeft, Mail, User, ShieldAlert, Phone, BookOpen, Lock } from "lucide-react";
 import axiosInstance from "../../lib/axiosInstance";
 
 export default function TPOSignupPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const googleEmail = searchParams.get("email") || "";
+  const googleName = searchParams.get("name") || "";
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
-      name: "",
-      email: "",
+      name: googleName,
+      email: googleEmail,
       employee_id: "",
       college_name: "",
       department: "Placement & Training Division",
@@ -27,6 +32,15 @@ export default function TPOSignupPage() {
   });
 
   const passwordVal = watch("password");
+
+  useEffect(() => {
+    if (googleEmail) {
+      setValue("email", googleEmail);
+    }
+    if (googleName) {
+      setValue("name", googleName);
+    }
+  }, [googleEmail, googleName, setValue]);
 
   const onSubmit = async (data: any) => {
     try {

@@ -36,6 +36,16 @@ export default function LoginPage() {
     } catch (error: any) {
       toast.dismiss("google-login");
       console.error("Google login error:", error);
+      
+      const resData = error.response?.data;
+      if (resData?.error === "user_not_found" && resData?.data?.email) {
+        toast.success("Proceeding to complete registration...");
+        const email = resData.data.email;
+        const name = resData.data.name || "";
+        navigate(`/role-select?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`);
+        return;
+      }
+
       const message = error.response?.data?.message || "Google authentication failed. Make sure you are registered.";
       toast.error(message);
       

@@ -1,7 +1,12 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { GraduationCap, Award, Briefcase, Shield, ArrowRight } from "lucide-react";
 
 export default function RoleSelectPage() {
+  const [searchParams] = useSearchParams();
+  const email = searchParams.get("email") || "";
+  const name = searchParams.get("name") || "";
+  const queryStr = email ? `?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}` : "";
+
   const roles = [
     {
       id: "student",
@@ -77,7 +82,7 @@ export default function RoleSelectPage() {
             return (
               <Link
                 key={r.id}
-                to={r.route}
+                to={`${r.route}${queryStr}`}
                 className="group relative p-6 rounded-2xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between cursor-pointer"
               >
                 <div>
