@@ -29,12 +29,15 @@ export async function sendOtp(
   try {
     const transporter = nodemailer.createTransport({
       host: smtpHost,
-      port: smtpPort || 587,
-      secure: false,
+      port: smtpPort,
+      secure: smtpPort === 465,
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
+      connectionTimeout: 5000, // 5 seconds connection timeout
+      greetingTimeout: 5000,   // 5 seconds greeting timeout
+      socketTimeout: 5000,     // 5 seconds socket timeout
     });
 
     // In case of misconfiguration, verify will throw and we catch below.
