@@ -66,7 +66,57 @@ export async function sendOtp(
 
     return { success: true };
   } catch (error: any) {
-    console.error("SMTP error:", error?.message || error);
+    console.error("First SMTP attempt failed:", error?.message || error);
+
+    // If the first attempt used port 587 (or anything else besides 465), try a fallback on port 465 (SSL)
+    if (smtpPort !== 465) {
+      console.warn("Attempting fallback to port 465 (SSL) over IPv4...");
+      try {
+        const fallbackTransporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: 465,
+          secure: true,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+          connectionTimeout: 5000,
+          greetingTimeout: 5000,
+          socketTimeout: 5000,
+          family: 4,
+        });
+
+        await fallbackTransporter.verify();
+        await fallbackTransporter.sendMail({
+          from: `"Campus Placement Portal" <${smtpFrom}>`,
+          to: email,
+          subject: `Campus Connect OTP — ${purpose}`,
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;
+                        border:1px solid #e5e7eb;border-radius:8px;padding:32px;">
+              <h2 style="color:#0EA5E9;margin-bottom:8px;">Campus Placement Portal</h2>
+              <p style="color:#374151;">Your One-Time Password is:</p>
+              <div style="font-size:36px;font-weight:bold;letter-spacing:8px;
+                          color:#0EA5E9;text-align:center;padding:16px 0;">
+                ${otp}
+              </div>
+              <p style="color:#6B7280;font-size:13px;">
+                This OTP is valid for 10 minutes. Do not share it with anyone.
+              </p>
+            </div>
+          `,
+        });
+        console.log("✅ Fallback SMTP send on port 465 succeeded!");
+        return { success: true };
+      } catch (fallbackError: any) {
+        console.error("Fallback SMTP attempt failed:", fallbackError?.message || fallbackError);
+        return {
+          success: false,
+          error: `Port ${smtpPort} failed (${error.message || error}). Port 465 fallback also failed (${fallbackError.message || fallbackError}).`,
+        };
+      }
+    }
+
     return { success: false, error: error?.message || "Failed to send OTP" };
   }
 }
