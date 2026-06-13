@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { 
   User, 
   BookOpen, 
   Wrench, 
   Plus, 
   Trash2, 
-  Check, 
-  AlertTriangle, 
-  PlusCircle, 
-  Calendar, 
-  Briefcase, 
-  Award, 
-  Layers, 
-  Link as LinkIcon, 
-  FileText,
+  Pencil,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Linkedin,
+  Github,
+  Award,
+  BookMarked,
+  ShieldAlert
 } from "lucide-react";
 import toast from "react-hot-toast";
 import StudentNavigation from "../../components/StudentNavigation";
@@ -24,8 +22,6 @@ import {
   updateProfile, 
   updateSkills, 
   updateCertifications, 
-  updateInternships, 
-  updateWorkExperience, 
   updateProjects 
 } from "../../lib/profileService";
 
@@ -33,7 +29,10 @@ export default function StudentProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"personal" | "academic" | "professional">("personal");
+  const [editingCertId, setEditingCertId] = useState<string | null>(null);
+  const [editingProjId, setEditingProjId] = useState<string | null>(null);
 
   // Local form states
   const [personalForm, setPersonalForm] = useState({
@@ -43,34 +42,33 @@ export default function StudentProfilePage() {
     phoneNumber: "",
     parentPhoneNumber: "",
     address: { street: "", city: "", state: "", pincode: "", country: "India" },
-    emergencyContact: { name: "", relationship: "", phoneNumber: "" }
+    emergencyContact: { name: "", relationship: "", phoneNumber: "" },
+    linkedin_url: "",
+    github_url: ""
   });
 
   const [academicForm, setAcademicForm] = useState({
     class10Percentage: 0,
     class12Percentage: 0,
+    diplomaPercentage: 0,
+    cgpa: 0,
+    currentArrears: 0,
+    historyOfArrears: 0,
     schoolName: "",
     schoolCity: "",
-    collegeName: "AI Studio University",
+    collegeName: "",
     collegeCity: ""
   });
 
-  const [careerSummary, setCareerSummary] = useState("");
-  const [skillInput, setSkillInput] = useState("");
+  const [techSkillInput, setTechSkillInput] = useState("");
+  const [techSkillLevel, setTechSkillLevel] = useState<"Beginner" | "Intermediate" | "Advanced">("Intermediate");
+
+  const [softSkillInput, setSoftSkillInput] = useState("");
+  const [softSkillLevel, setSoftSkillLevel] = useState<"Beginner" | "Intermediate" | "Advanced">("Intermediate");
 
   // Expanded editor sections for arrays
   const [showCertForm, setShowCertForm] = useState(false);
   const [newCert, setNewCert] = useState({ name: "", issuedBy: "", issueDate: "", expiryDate: "", credentialUrl: "" });
-
-  const [showInternForm, setShowInternForm] = useState(false);
-  const [newIntern, setNewIntern] = useState({ 
-    companyName: "", position: "", startDate: "", endDate: "", currentlyWorking: false, description: "", skills: "" 
-  });
-
-  const [showWorkForm, setShowWorkForm] = useState(false);
-  const [newWork, setNewWork] = useState({ 
-    companyName: "", position: "", startDate: "", endDate: "", currentlyWorking: false, description: "", skills: "" 
-  });
 
   const [showProjForm, setShowProjForm] = useState(false);
   const [newProj, setNewProj] = useState({ 
@@ -104,28 +102,30 @@ export default function StudentProfilePage() {
               name: p.personalInfo.emergencyContact?.name || "",
               relationship: p.personalInfo.emergencyContact?.relationship || "",
               phoneNumber: p.personalInfo.emergencyContact?.phoneNumber || ""
-            }
+            },
+            linkedin_url: p.personalInfo.linkedin_url || "",
+            github_url: p.personalInfo.github_url || ""
           });
         }
 
         if (p.academicInfo) {
           setAcademicForm({
-            class10Percentage: p.academicInfo.class10Percentage || p.class10Percentage || 0,
-            class12Percentage: p.academicInfo.class12Percentage || p.class12Percentage || 0,
+            class10Percentage: p.academicInfo.class10Percentage || 0,
+            class12Percentage: p.academicInfo.class12Percentage || 0,
+            diplomaPercentage: p.academicInfo.diplomaPercentage || 0,
+            cgpa: parseFloat(String(p.academicInfo.cgpa || 0)) || 0,
+            currentArrears: p.academicInfo.currentArrears || 0,
+            historyOfArrears: p.academicInfo.historyOfArrears || 0,
             schoolName: p.academicInfo.schoolName || "",
             schoolCity: p.academicInfo.schoolCity || "",
-            collegeName: p.academicInfo.collegeName || "AI Studio University",
+            collegeName: p.academicInfo.collegeName || "VSB",
             collegeCity: p.academicInfo.collegeCity || ""
           });
-        }
-
-        if (p.professionalInfo) {
-          setCareerSummary(p.professionalInfo.summary || "");
         }
       }
     } catch (err) {
       console.error("Failed to load student profile:", err);
-      toast.error("Failed to load your profile details database logs.");
+      toast.error("Failed to load your profile details.");
     } finally {
       setLoading(false);
     }
@@ -139,7 +139,6 @@ export default function StudentProfilePage() {
     e.preventDefault();
     setSaving(true);
     try {
-      // Validations
       if (activeTab === "personal") {
         if (personalForm.phoneNumber && !/^\d{10}$/.test(personalForm.phoneNumber)) {
           toast.error("Your primary phone number must be exactly 10 digits.");
@@ -147,7 +146,7 @@ export default function StudentProfilePage() {
           return;
         }
         if (personalForm.emergencyContact?.phoneNumber && !/^\d{10}$/.test(personalForm.emergencyContact.phoneNumber)) {
-          toast.error("The emergency telephone number must be exactly 10 digits.");
+          toast.error("The emergency phone number must be exactly 10 digits.");
           setSaving(false);
           return;
         }
@@ -159,12 +158,17 @@ export default function StudentProfilePage() {
         }
       } else if (activeTab === "academic") {
         if (academicForm.class10Percentage < 0 || academicForm.class10Percentage > 100) {
-          toast.error("10th class percentage standard must be inside bounds [0-100%].");
+          toast.error("10th class percentage must be between 0 and 100%.");
           setSaving(false);
           return;
         }
         if (academicForm.class12Percentage < 0 || academicForm.class12Percentage > 100) {
-          toast.error("12th class percentage standard must be inside bounds [0-100%].");
+          toast.error("12th class percentage must be between 0 and 100%.");
+          setSaving(false);
+          return;
+        }
+        if (academicForm.diplomaPercentage < 0 || academicForm.diplomaPercentage > 100) {
+          toast.error("Diploma percentage must be between 0 and 100%.");
           setSaving(false);
           return;
         }
@@ -183,64 +187,62 @@ export default function StudentProfilePage() {
     }
   };
 
-  const saveCareerSummary = async () => {
-    if (careerSummary.length > 500) {
-      toast.error("Career summary breaches 500 character limits.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await updateProfile({ professionalInfo: { summary: careerSummary } });
-      if (res.success) {
-        setProfile(res.data);
-        toast.success("Profile Career summary successfully updated.");
-      }
-    } catch (err: any) {
-      toast.error("Failed to commit career summary updates.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Skill administration
-  const handleAddSkill = async (e: React.FormEvent) => {
+  // Skill Management
+  const handleAddSkill = async (e: React.FormEvent, type: "technical" | "soft") => {
     e.preventDefault();
-    const clean = skillInput.trim();
-    if (!clean) return;
+    const skillName = type === "technical" ? techSkillInput.trim() : softSkillInput.trim();
+    const skillLevel = type === "technical" ? techSkillLevel : softSkillLevel;
+    
+    if (!skillName) return;
 
-    const currentSkills = profile?.professionalInfo?.skills || [];
-    if (currentSkills.some((s: string) => s.toLowerCase() === clean.toLowerCase())) {
-      toast.error(`The skill "${clean}" already exists on your professional profile.`);
-      return;
-    }
+    const currentList = type === "technical" 
+      ? profile?.professionalInfo?.technical_skills || [] 
+      : profile?.professionalInfo?.soft_skills || [];
 
-    if (currentSkills.length >= 20) {
-      toast.error("Maximum 20 technologies are permitted on your student profile index.");
+    if (currentList.some((s: string) => s.split(":")[0].toLowerCase() === skillName.toLowerCase())) {
+      toast.error(`The skill "${skillName}" already exists in your ${type} skills.`);
       return;
     }
 
     try {
-      const res = await updateSkills("add", clean);
+      const res = await updateSkills("add", skillName, type, skillLevel);
       if (res.success) {
         setProfile((prev: any) => ({
           ...prev,
-          professionalInfo: { ...prev.professionalInfo, skills: res.data.skills }
+          professionalInfo: {
+            ...prev.professionalInfo,
+            skills: res.data.skills,
+            technical_skills: res.data.technical_skills,
+            soft_skills: res.data.soft_skills
+          }
         }));
-        setSkillInput("");
-        toast.success(`Skill "${clean}" registered.`);
+        if (type === "technical") {
+          setTechSkillInput("");
+          setTechSkillLevel("Intermediate");
+        } else {
+          setSoftSkillInput("");
+          setSoftSkillLevel("Intermediate");
+        }
+        toast.success(`Skill "${skillName}" added.`);
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Could not save skill.");
     }
   };
 
-  const handleRemoveSkill = async (skill: string) => {
+  const handleRemoveSkill = async (skillString: string, type: "technical" | "soft") => {
+    const skillName = skillString.split(":")[0];
     try {
-      const res = await updateSkills("remove", skill);
+      const res = await updateSkills("remove", skillName, type);
       if (res.success) {
         setProfile((prev: any) => ({
           ...prev,
-          professionalInfo: { ...prev.professionalInfo, skills: res.data.skills }
+          professionalInfo: {
+            ...prev.professionalInfo,
+            skills: res.data.skills,
+            technical_skills: res.data.technical_skills,
+            soft_skills: res.data.soft_skills
+          }
         }));
         toast.success("Skill removed.");
       }
@@ -257,15 +259,18 @@ export default function StudentProfilePage() {
       return;
     }
     try {
-      const res = await updateCertifications("add", newCert);
+      const action = editingCertId ? "update" : "add";
+      const payload = editingCertId ? { ...newCert, _id: editingCertId } : newCert;
+      const res = await updateCertifications(action, payload);
       if (res.success) {
         setProfile((prev: any) => ({
           ...prev,
           professionalInfo: res.data
         }));
         setNewCert({ name: "", issuedBy: "", issueDate: "", expiryDate: "", credentialUrl: "" });
+        setEditingCertId(null);
         setShowCertForm(false);
-        toast.success("New certificate added successfully.");
+        toast.success(editingCertId ? "Certificate updated." : "New certificate added successfully.");
       }
     } catch (err) {
       toast.error("Could not add certificate.");
@@ -287,94 +292,6 @@ export default function StudentProfilePage() {
     }
   };
 
-  // Internships list editor
-  const handleAddIntern = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newIntern.companyName || !newIntern.position || !newIntern.startDate) {
-      toast.error("Company name, job role, and starting date are mandatory.");
-      return;
-    }
-    try {
-      const formatted = {
-        companyName: newIntern.companyName,
-        position: newIntern.position,
-        duration: {
-          startDate: newIntern.startDate,
-          endDate: newIntern.currentlyWorking ? undefined : newIntern.endDate
-        },
-        currentlyWorking: newIntern.currentlyWorking,
-        description: newIntern.description,
-        skills: newIntern.skills ? newIntern.skills.split(",").map(s => s.trim()) : []
-      };
-
-      const res = await updateInternships("add", formatted);
-      if (res.success) {
-        setProfile((prev: any) => ({ ...prev, professionalInfo: res.data }));
-        setNewIntern({ companyName: "", position: "", startDate: "", endDate: "", currentlyWorking: false, description: "", skills: "" });
-        setShowInternForm(false);
-        toast.success("Internship record registered.");
-      }
-    } catch (err) {
-      toast.error("Failed to register internship.");
-    }
-  };
-
-  const handleRemoveIntern = async (id: string) => {
-    try {
-      const res = await updateInternships("delete", { _id: id });
-      if (res.success) {
-        setProfile((prev: any) => ({ ...prev, professionalInfo: res.data }));
-        toast.success("Internship record cleared from archives.");
-      }
-    } catch (err) {
-      toast.error("Failed to clear internship.");
-    }
-  };
-
-  // Work experience list edit
-  const handleAddWork = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newWork.companyName || !newWork.position || !newWork.startDate) {
-      toast.error("Employer details, job role, and starting date are required.");
-      return;
-    }
-    try {
-      const formatted = {
-        companyName: newWork.companyName,
-        position: newWork.position,
-        duration: {
-          startDate: newWork.startDate,
-          endDate: newWork.currentlyWorking ? undefined : newWork.endDate
-        },
-        currentlyWorking: newWork.currentlyWorking,
-        description: newWork.description,
-        skills: newWork.skills ? newWork.skills.split(",").map(s => s.trim()) : []
-      };
-
-      const res = await updateWorkExperience("add", formatted);
-      if (res.success) {
-        setProfile((prev: any) => ({ ...prev, professionalInfo: res.data }));
-        setNewWork({ companyName: "", position: "", startDate: "", endDate: "", currentlyWorking: false, description: "", skills: "" });
-        setShowWorkForm(false);
-        toast.success("Work experience added to portfolio.");
-      }
-    } catch (err) {
-      toast.error("Failed to save work experience details.");
-    }
-  };
-
-  const handleRemoveWork = async (id: string) => {
-    try {
-      const res = await updateWorkExperience("delete", { _id: id });
-      if (res.success) {
-        setProfile((prev: any) => ({ ...prev, professionalInfo: res.data }));
-        toast.success("Work experience deleted.");
-      }
-    } catch (err) {
-      toast.error("Failed to delete work experience record.");
-    }
-  };
-
   // Projects list edits
   const handleAddProj = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -393,12 +310,15 @@ export default function StudentProfilePage() {
         technologies: newProj.technologies ? newProj.technologies.split(",").map(s => s.trim()) : []
       };
 
-      const res = await updateProjects("add", formatted);
+      const action = editingProjId ? "update" : "add";
+      const payload = editingProjId ? { ...formatted, _id: editingProjId } : formatted;
+      const res = await updateProjects(action, payload);
       if (res.success) {
         setProfile((prev: any) => ({ ...prev, professionalInfo: res.data }));
         setNewProj({ title: "", description: "", technologies: "", startDate: "", endDate: "", githubUrl: "", liveUrl: "" });
+        setEditingProjId(null);
         setShowProjForm(false);
-        toast.success("Personal portfolio project registered.");
+        toast.success(editingProjId ? "Project updated." : "Personal portfolio project registered.");
       }
     } catch (err) {
       toast.error("Failed to register project.");
@@ -417,51 +337,54 @@ export default function StudentProfilePage() {
     }
   };
 
+  const getSkillBadgeColor = (level: string) => {
+    switch (level?.toLowerCase()) {
+      case "advanced": return "bg-emerald-100 text-emerald-800 border-emerald-200";
+      case "beginner": return "bg-gray-100 text-gray-700 border-gray-200";
+      default: return "bg-sky-100 text-sky-850 border-sky-200";
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex flex-col lg:flex-row min-h-screen bg-slate-900 text-slate-100">
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
         <StudentNavigation />
-        <div className="flex-1 flex items-center justify-center py-20">
-          <div className="text-center space-y-4">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="text-slate-400 font-medium text-sm font-mono">Synchronizing Profile settings...</p>
-          </div>
-        </div>
+        <main className="flex-1 flex items-center justify-center">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </main>
       </div>
     );
   }
 
-  const skillsList = profile?.professionalInfo?.skills || [];
+  const technicalSkillsList = profile?.professionalInfo?.technical_skills || [];
+  const softSkillsList = profile?.professionalInfo?.soft_skills || [];
   const certsList = profile?.professionalInfo?.certifications || [];
-  const intersList = profile?.professionalInfo?.internships || [];
-  const workList = profile?.professionalInfo?.workExperience || [];
   const projectsList = profile?.professionalInfo?.projects || [];
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <StudentNavigation />
 
-      {/* Profile workspace */}
-      <main className="flex-1 p-6 lg:p-10 space-y-8 overflow-y-auto max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-6 lg:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
         
         {/* Workspace Title bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-900 pb-5">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-sky-100 pb-5">
           <div className="space-y-1">
-            <h1 className="text-2xl lg:text-3xl font-black text-slate-100 tracking-tight">Onboarding Profile Builder</h1>
-            <p className="text-xs text-slate-400">Complete your profile records sheets to make your candidacy searchable for HR corporate reviewers.</p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 tracking-tight">Onboarding Profile Builder</h1>
+            <p className="text-xs text-gray-500">Complete your profile records sheets to make your candidacy searchable for HR corporate reviewers.</p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-            <Clock className="w-4 h-4 text-slate-600" />
-            <span>Updated: <strong className="text-slate-300">{profile?.profileSettings?.lastProfileUpdate ? new Date(profile.profileSettings.lastProfileUpdate).toLocaleDateString() : "Just Now"}</strong></span>
+          <div className="flex items-center gap-2 text-xs text-gray-655 bg-white p-2.5 rounded-xl border border-sky-100">
+            <Clock className="w-4 h-4 text-sky-400" />
+            <span>Updated: <strong className="text-gray-800">{profile?.profileSettings?.lastProfileUpdate ? new Date(profile.profileSettings.lastProfileUpdate).toLocaleDateString() : "Just Now"}</strong></span>
           </div>
         </div>
 
         {/* Tab Selection */}
-        <div className="flex border-b border-slate-900 p-1 bg-slate-900/40 rounded-xl max-w-lg">
+        <div className="flex border border-sky-100 p-1 bg-white rounded-xl max-w-lg shadow-sm">
           <button
             onClick={() => setActiveTab("personal")}
             className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === "personal" ? "bg-blue-600 text-white shadow-md shadow-blue-600/10" : "text-slate-400 hover:text-slate-200"
+              activeTab === "personal" ? "bg-sky-500 text-white shadow-sm hover:bg-sky-600" : "text-sky-600 hover:text-sky-700 hover:bg-sky-50"
             }`}
           >
             <User className="w-4 h-4" />
@@ -470,7 +393,7 @@ export default function StudentProfilePage() {
           <button
             onClick={() => setActiveTab("academic")}
             className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === "academic" ? "bg-blue-600 text-white shadow-md shadow-blue-600/10" : "text-slate-400 hover:text-slate-200"
+              activeTab === "academic" ? "bg-sky-500 text-white shadow-sm hover:bg-sky-600" : "text-sky-600 hover:text-sky-700 hover:bg-sky-50"
             }`}
           >
             <BookOpen className="w-4 h-4" />
@@ -479,44 +402,42 @@ export default function StudentProfilePage() {
           <button
             onClick={() => setActiveTab("professional")}
             className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === "professional" ? "bg-blue-600 text-white shadow-md shadow-blue-600/10" : "text-slate-400 hover:text-slate-200"
+              activeTab === "professional" ? "bg-sky-500 text-white shadow-sm hover:bg-sky-600" : "text-sky-600 hover:text-sky-700 hover:bg-sky-50"
             }`}
           >
             <Wrench className="w-4 h-4" />
-            <span>Professional Career</span>
+            <span>Skills & Projects</span>
           </button>
         </div>
 
         {/* Form Container */}
-        <div className="bg-slate-900/20 rounded-2xl border border-slate-800/85">
+        <div className="bg-white rounded-2xl border border-sky-100 shadow-sm">
           
-          {/* Active Tab Elements */}
-
           {/* 1. PERSONAL TAB */}
           {activeTab === "personal" && (
-            <form onSubmit={saveGeneralProfile} className="p-6 lg:p-8 space-y-8">
+            <form onSubmit={saveGeneralProfile} className="p-6 lg:p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* Dob */}
-                <div className="space-y-1.5Col">
-                  <label className="text-xs font-bold text-slate-300 block">Date of Birth</label>
+                {/* DOB */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700 block">Date of Birth</label>
                   <input
                     type="date"
                     required
                     value={personalForm.dateOfBirth}
                     onChange={(e) => setPersonalForm({ ...personalForm, dateOfBirth: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                    className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all font-mono"
                   />
                 </div>
 
                 {/* Gender */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 block">Gender</label>
+                  <label className="text-xs font-bold text-gray-700 block">Gender</label>
                   <select
                     required
                     value={personalForm.gender}
                     onChange={(e) => setPersonalForm({ ...personalForm, gender: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
                   >
                     <option value="">Select gender</option>
                     <option value="Male">Male</option>
@@ -527,11 +448,11 @@ export default function StudentProfilePage() {
 
                 {/* Blood Group */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 block">Blood Group</label>
+                  <label className="text-xs font-bold text-gray-700 block">Blood Group</label>
                   <select
                     value={personalForm.bloodGroup}
                     onChange={(e) => setPersonalForm({ ...personalForm, bloodGroup: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                   >
                     <option value="">Select blood type</option>
                     <option value="A+">A+</option>
@@ -547,36 +468,67 @@ export default function StudentProfilePage() {
 
                 {/* Phone */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 block">Phone Number (10 digits)</label>
+                  <label className="text-xs font-bold text-gray-700 block">Phone Number (10 digits)</label>
                   <input
                     type="tel"
                     required
                     placeholder="e.g. 9876543210"
                     value={personalForm.phoneNumber}
                     onChange={(e) => setPersonalForm({ ...personalForm, phoneNumber: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                    className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all font-mono"
                   />
                 </div>
 
                 {/* Parent Phone */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 block">Parent Phone Number</label>
+                  <label className="text-xs font-bold text-gray-700 block">Parent Phone Number</label>
                   <input
                     type="tel"
                     placeholder="e.g. 9112233445"
                     value={personalForm.parentPhoneNumber}
                     onChange={(e) => setPersonalForm({ ...personalForm, parentPhoneNumber: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                    className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
                   />
                 </div>
               </div>
 
-              {/* Mailing Address nested object */}
-              <div className="border-t border-slate-900 pt-6 space-y-4">
-                <span className="text-xs font-extrabold uppercase text-slate-400 tracking-wider block">Mailing Address</span>
+              {/* Profiles & Links */}
+              <div className="border-t border-sky-100 pt-5 space-y-4">
+                <span className="text-xs font-extrabold uppercase text-gray-400 tracking-wider block">Portfolio Profiles & Web Presence</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-gray-700 flex items-center gap-1">
+                      <Linkedin className="w-3.5 h-3.5 text-sky-600" /> LinkedIn Profile URL
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="e.g. https://linkedin.com/in/username"
+                      value={personalForm.linkedin_url}
+                      onChange={(e) => setPersonalForm({ ...personalForm, linkedin_url: e.target.value })}
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-gray-755 flex items-center gap-1">
+                      <Github className="w-3.5 h-3.5 text-gray-800" /> GitHub Profile URL
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="e.g. https://github.com/username"
+                      value={personalForm.github_url}
+                      onChange={(e) => setPersonalForm({ ...personalForm, github_url: e.target.value })}
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Mailing Address */}
+              <div className="border-t border-sky-100 pt-5 space-y-4">
+                <span className="text-xs font-extrabold uppercase text-gray-400 tracking-wider block">Mailing Address</span>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Street Address</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">Street Address</label>
                     <input
                       type="text"
                       placeholder="e.g. Flat 302, Phase 2, Royal Heights"
@@ -585,53 +537,53 @@ export default function StudentProfilePage() {
                         ...personalForm,
                         address: { ...personalForm.address, street: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">City / District</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">City / District</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Hyderabad"
+                      placeholder="e.g. Tirupur"
                       value={personalForm.address.city}
                       onChange={(e) => setPersonalForm({
                         ...personalForm,
                         address: { ...personalForm.address, city: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">State / Region</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">State / Region</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Telangana"
+                      placeholder="e.g. Tamil Nadu"
                       value={personalForm.address.state}
                       onChange={(e) => setPersonalForm({
                         ...personalForm,
                         address: { ...personalForm.address, state: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Pincode / Zip</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">Pincode / Zip</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. 500001"
+                      placeholder="e.g. 641601"
                       value={personalForm.address.pincode}
                       onChange={(e) => setPersonalForm({
                         ...personalForm,
                         address: { ...personalForm.address, pincode: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Country</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">Country</label>
                     <input
                       type="text"
                       required
@@ -640,18 +592,18 @@ export default function StudentProfilePage() {
                         ...personalForm,
                         address: { ...personalForm.address, country: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Emergency details nested object */}
-              <div className="border-t border-slate-900 pt-6 space-y-4">
-                <span className="text-xs font-extrabold uppercase text-slate-400 tracking-wider block">Emergency Contact Persons</span>
+              {/* Emergency Contact */}
+              <div className="border-t border-sky-100 pt-5 space-y-4">
+                <span className="text-xs font-extrabold uppercase text-gray-400 tracking-wider block">Emergency Contact Person</span>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">contact full Name</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">contact full Name</label>
                     <input
                       type="text"
                       required
@@ -661,11 +613,11 @@ export default function StudentProfilePage() {
                         ...personalForm,
                         emergencyContact: { ...personalForm.emergencyContact, name: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Relationship</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">Relationship</label>
                     <input
                       type="text"
                       required
@@ -675,11 +627,11 @@ export default function StudentProfilePage() {
                         ...personalForm,
                         emergencyContact: { ...personalForm.emergencyContact, relationship: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Phone Number (10 digits)</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-500">Phone Number (10 digits)</label>
                     <input
                       type="tel"
                       required
@@ -689,18 +641,18 @@ export default function StudentProfilePage() {
                         ...personalForm,
                         emergencyContact: { ...personalForm.emergencyContact, phoneNumber: e.target.value }
                       })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Submit Buttons */}
-              <div className="border-t border-slate-900 pt-6 flex justify-end gap-3">
+              <div className="border-t border-sky-100 pt-6 flex justify-end">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-blue-600/10"
+                  className="px-6 py-2.5 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-300 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-2 shadow-sm"
                 >
                   {saving ? "Saving Fields..." : "Commit Personal Info"}
                 </button>
@@ -710,15 +662,15 @@ export default function StudentProfilePage() {
 
           {/* 2. ACADEMIC TAB */}
           {activeTab === "academic" && (
-            <form onSubmit={saveGeneralProfile} className="p-6 lg:p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <form onSubmit={saveGeneralProfile} className="p-6 lg:p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* 10th Marks */}
-                <div className="space-y-4 p-5 bg-slate-900/30 rounded-2xl border border-slate-800/40">
-                  <span className="text-xs font-extrabold uppercase text-slate-400 tracking-wider block">Class 10th / Secondary Boards</span>
+                <div className="space-y-4 p-5 bg-white rounded-2xl border border-sky-100 shadow-xs">
+                  <span className="text-xs font-extrabold uppercase text-gray-700 tracking-wider block">Class 10th / Secondary Boards</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-slate-500">Aggregate Percentage (%)</label>
+                      <label className="text-[10px] uppercase font-bold text-gray-700">Aggregate Percentage (%)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -727,82 +679,151 @@ export default function StudentProfilePage() {
                         min="0"
                         value={academicForm.class10Percentage || ""}
                         onChange={(e) => setAcademicForm({ ...academicForm, class10Percentage: parseFloat(e.target.value) || 0 })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                        className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
                       />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">School Name</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-700">School Name</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. St. Joseph's High School"
                       value={academicForm.schoolName}
                       onChange={(e) => setAcademicForm({ ...academicForm, schoolName: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">School City</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-700">School City</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Hyderabad"
+                      placeholder="e.g. Tirupur"
                       value={academicForm.schoolCity}
                       onChange={(e) => setAcademicForm({ ...academicForm, schoolCity: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                 </div>
 
-                {/* 12th Marks */}
-                <div className="space-y-4 p-5 bg-slate-900/30 rounded-2xl border border-slate-800/40">
-                  <span className="text-xs font-extrabold uppercase text-slate-400 tracking-wider block">Class 12th / Senior Secondary</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 12th or Diploma Marks */}
+                <div className="space-y-4 p-5 bg-white rounded-2xl border border-sky-100 shadow-xs">
+                  <span className="text-xs font-extrabold uppercase text-gray-700 tracking-wider block">Class 12th / Diploma Records</span>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-slate-500">Aggregate Percentage (%)</label>
+                      <label className="text-[10px] uppercase font-bold text-gray-700">12th Percentage (%)</label>
                       <input
                         type="number"
                         step="0.01"
-                        required
                         max="100"
                         min="0"
+                        placeholder="N/A"
                         value={academicForm.class12Percentage || ""}
                         onChange={(e) => setAcademicForm({ ...academicForm, class12Percentage: parseFloat(e.target.value) || 0 })}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                        className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-bold text-gray-700">Diploma Percentage (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        max="100"
+                        min="0"
+                        placeholder="N/A"
+                        value={academicForm.diplomaPercentage || ""}
+                        onChange={(e) => setAcademicForm({ ...academicForm, diplomaPercentage: parseFloat(e.target.value) || 0 })}
+                        className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
                       />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">Undergraduate Junior College / High school name</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-755">College / High School Name</label>
                     <input
                       type="text"
                       placeholder="e.g. Little Flower Junior College"
                       value={academicForm.collegeName}
                       onChange={(e) => setAcademicForm({ ...academicForm, collegeName: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-slate-500">College / High School City</label>
+                    <label className="text-[10px] uppercase font-bold text-gray-755">College / High School City</label>
                     <input
                       type="text"
-                      placeholder="e.g. Hyderabad"
+                      placeholder="e.g. Tirupur"
                       value={academicForm.collegeCity}
                       onChange={(e) => setAcademicForm({ ...academicForm, collegeCity: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200"
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                 </div>
 
               </div>
 
+              {/* Arrears Tracking & CGPA */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* University CGPA */}
+                <div className="p-5 bg-white rounded-2xl border border-sky-100 shadow-xs space-y-4">
+                  <span className="text-xs font-extrabold uppercase text-gray-700 tracking-wider block">University CGPA</span>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-gray-700">CGPA (out of 10.0)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="10"
+                      placeholder="e.g. 8.75"
+                      value={academicForm.cgpa || ""}
+                      onChange={(e) => setAcademicForm({ ...academicForm, cgpa: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
+                    />
+                    <p className="text-[10px] text-gray-500">Enter your overall cumulative CGPA across completed semesters.</p>
+                  </div>
+                </div>
+
+                {/* Arrears History */}
+                <div className="p-5 bg-white rounded-2xl border border-sky-100 shadow-xs space-y-4">
+                  <span className="text-xs font-extrabold uppercase text-gray-700 tracking-wider block flex items-center gap-1">
+                    <ShieldAlert className="w-4 h-4 text-amber-500" /> Standing Arrears & History
+                  </span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-bold text-gray-700">Current Arrears</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={academicForm.currentArrears}
+                        onChange={(e) => setAcademicForm({ ...academicForm, currentArrears: parseInt(e.target.value) || 0 })}
+                        className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-bold text-gray-700">History of Arrears</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={academicForm.historyOfArrears}
+                        onChange={(e) => setAcademicForm({ ...academicForm, historyOfArrears: parseInt(e.target.value) || 0 })}
+                        className="w-full bg-sky-50/30 border border-sky-100 rounded-xl px-4 py-2.5 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-400">Specify standing paper backlogs and total cumulative cleared backlogs.</p>
+                </div>
+
+              </div>
+
               {/* Submit Button */}
-              <div className="border-t border-slate-900 pt-6 flex justify-end">
+              <div className="border-t border-sky-100 pt-6 flex justify-end">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-600/10"
+                  className="px-6 py-2.5 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-300 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer shadow-md shadow-sky-500/10"
                 >
                   {saving ? "Updating Marks..." : "Commit Academic Records"}
                 </button>
@@ -810,581 +831,389 @@ export default function StudentProfilePage() {
             </form>
           )}
 
-          {/* 3. PROFESSIONAL ADVANCED TAB */}
+          {/* 3. SKILLS & PROJECTS TAB */}
           {activeTab === "professional" && (
-            <div className="p-6 lg:p-8 space-y-10">
-              
-              {/* Career summary character counting card */}
-              <div className="p-5 bg-slate-900/4 w-full rounded-2xl border border-slate-800/60 space-y-4">
-                <div className="flex justify-between items-center flex-wrap gap-2">
+            <div className="p-6 lg:p-8 space-y-8">
+
+              {/* Combined Technical & Soft Skills sections */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* 1. TECHNICAL SKILLS PANEL */}
+                <div className="p-5 bg-white rounded-2xl border border-sky-100 shadow-xs space-y-4">
                   <div>
-                    <h3 className="font-bold text-sm text-slate-200">Career Summary Profile</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Write a brief overview of your professional aspirations, engineering strengths and core focus.</p>
-                  </div>
-                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-lg border ${
-                    careerSummary.length > 500 ? "text-red-400 bg-red-950 border-red-900/50" : "text-slate-400 bg-slate-950 border-slate-800"
-                  }`}>
-                    {careerSummary.length} / 500 chars limit
-                  </span>
-                </div>
-
-                <textarea
-                  rows={4}
-                  maxLength={510}
-                  placeholder="e.g. Diligent computer science undergraduate with experience in designing robust fullstack web applications. Skilled in React, Express routers, and MongoDB data mapping. Looking to contribute skills towards a collaborative SDE role..."
-                  value={careerSummary}
-                  onChange={(e) => setCareerSummary(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-4 text-xs text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all leading-relaxed"
-                />
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={saveCareerSummary}
-                    disabled={saving || careerSummary.length > 500}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                  >
-                    Update Career Statement
-                  </button>
-                </div>
-              </div>
-
-              {/* Skills tags administration */}
-              <div className="p-5 bg-slate-900/4 rounded-2xl border border-slate-800/60 space-y-4">
-                <div>
-                  <h3 className="font-bold text-sm text-slate-200 flex items-center justify-between">
-                    <span>Technology Stack Tags</span>
-                    <span className="text-[10px] font-mono text-slate-500">Max 20 skills • {skillsList.length} defined</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Identify primary programming languages, frameworks, deployment tools, or database architectures.</p>
-                </div>
-
-                {/* Form to add */}
-                <form onSubmit={handleAddSkill} className="flex gap-2 max-w-sm">
-                  <input
-                    type="text"
-                    placeholder="e.g. Node.js, Docker, Tailwind"
-                    value={skillInput}
-                    onChange={(e) => setSkillInput(e.target.value)}
-                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 focus:border-blue-500"
-                  />
-                  <button
-                    type="submit"
-                    className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-all cursor-pointer shrink-0"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </form>
-
-                {/* Active Tag visual render */}
-                {skillsList.length === 0 ? (
-                  <p className="text-[11px] text-slate-600 italic">No technology tags specified. Type a skill and click plus to record.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2.5 pt-2">
-                    {skillsList.map((skill: string) => (
-                      <span
-                        key={skill}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-slate-300 font-bold text-xs rounded-lg border border-slate-800 font-mono"
-                      >
-                        <span>{skill}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSkill(skill)}
-                          className="hover:text-red-400 transition-colors cursor-pointer"
-                        >
-                          &times;
-                        </button>
+                    <h3 className="font-bold text-sm text-gray-900 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <BookMarked className="w-4 h-4 text-sky-500" /> Technical Skills
                       </span>
-                    ))}
+                      <span className="text-[10px] font-mono text-gray-400 bg-sky-50 px-2 py-0.5 rounded">
+                        {technicalSkillsList.length} tags
+                      </span>
+                    </h3>
+                    <p className="text-[10px] text-gray-500 mt-1">Add programming languages, core libraries, frameworks, cloud databases, etc.</p>
                   </div>
-                )}
+
+                  <form onSubmit={(e) => handleAddSkill(e, "technical")} className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. React, Node.js"
+                      value={techSkillInput}
+                      onChange={(e) => setTechSkillInput(e.target.value)}
+                      className="flex-1 bg-sky-50 border border-sky-100 rounded-xl px-3 py-1.5 text-xs text-gray-900 focus:border-sky-500"
+                    />
+                    <select
+                      value={techSkillLevel}
+                      onChange={(e: any) => setTechSkillLevel(e.target.value)}
+                      className="bg-sky-50 border border-sky-100 rounded-xl px-2 py-1.5 text-xs text-gray-800"
+                    >
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="p-2 bg-sky-500 hover:bg-sky-600 rounded-xl text-white transition-all cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </form>
+
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {technicalSkillsList.length === 0 ? (
+                      <p className="text-[10px] text-gray-400 italic">No technical skills added yet.</p>
+                    ) : (
+                      technicalSkillsList.map((skillStr: string) => {
+                        const [skillName, skillLvl] = skillStr.split(":");
+                        return (
+                          <span
+                            key={skillStr}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg border ${getSkillBadgeColor(skillLvl)}`}
+                          >
+                            <span>{skillName}</span>
+                            <span className="text-[8px] uppercase tracking-wider opacity-60">({skillLvl || "Intermediate"})</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSkill(skillStr, "technical")}
+                              className="hover:text-red-500 font-extrabold transition-colors cursor-pointer text-xs ml-1"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. SOFT SKILLS PANEL */}
+                <div className="p-5 bg-white rounded-2xl border border-sky-100 shadow-xs space-y-4">
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Wrench className="w-4 h-4 text-teal-500" /> Soft Skills
+                      </span>
+                      <span className="text-[10px] font-mono text-gray-400 bg-teal-50 px-2 py-0.5 rounded text-teal-700">
+                        {softSkillsList.length} tags
+                      </span>
+                    </h3>
+                    <p className="text-[10px] text-gray-500 mt-1">Specify personal attributes, languages, team tools or work qualities.</p>
+                  </div>
+
+                  <form onSubmit={(e) => handleAddSkill(e, "soft")} className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Communication, Leadership"
+                      value={softSkillInput}
+                      onChange={(e) => setSoftSkillInput(e.target.value)}
+                      className="flex-1 bg-sky-50 border border-sky-100 rounded-xl px-3 py-1.5 text-xs text-gray-900 focus:border-sky-500"
+                    />
+                    <select
+                      value={softSkillLevel}
+                      onChange={(e: any) => setSoftSkillLevel(e.target.value)}
+                      className="bg-sky-50 border border-sky-100 rounded-xl px-2 py-1.5 text-xs text-gray-800"
+                    >
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="p-2 bg-sky-500 hover:bg-sky-600 rounded-xl text-white transition-all cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </form>
+
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {softSkillsList.length === 0 ? (
+                      <p className="text-[10px] text-gray-400 italic">No soft skills added yet.</p>
+                    ) : (
+                      softSkillsList.map((skillStr: string) => {
+                        const [skillName, skillLvl] = skillStr.split(":");
+                        return (
+                          <span
+                            key={skillStr}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg border ${getSkillBadgeColor(skillLvl)}`}
+                          >
+                            <span>{skillName}</span>
+                            <span className="text-[8px] uppercase tracking-wider opacity-60">({skillLvl || "Intermediate"})</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSkill(skillStr, "soft")}
+                              className="hover:text-red-500 font-extrabold transition-colors cursor-pointer text-xs ml-1"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
               </div>
 
-              {/* Expandable cert list editor */}
-              <div className="p-5 bg-slate-900/4 rounded-2xl border border-slate-800/60 space-y-4">
+              {/* Certifications and Projects (maintaining fully working states) */}
+              <div className="p-5 bg-white rounded-2xl border border-sky-100 shadow-sm space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="font-bold text-sm text-slate-200">Certificates & Licenses</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Certificates and links to verify licenses from cloud providers or tech universities.</p>
+                    <h3 className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-emerald-500" /> Certificates & Licenses
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-0.5">List professional course completions and credential links.</p>
                   </div>
                   <button
-                    onClick={() => setShowCertForm(!showCertForm)}
-                    className="py-1 px-3 border border-slate-800 hover:bg-slate-900 hover:text-white transition-all rounded-lg text-xs font-bold font-mono text-blue-400 flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => {
+                      setEditingCertId(null);
+                      setNewCert({ name: "", issuedBy: "", issueDate: "", expiryDate: "", credentialUrl: "" });
+                      setShowCertForm(!showCertForm);
+                    }}
+                    className="py-1 px-3 border border-sky-100 hover:bg-sky-50 hover:text-sky-700 transition-all rounded-lg text-xs font-bold font-mono text-sky-600 flex items-center gap-1.5 cursor-pointer"
                   >
                     {showCertForm ? "Close Form" : "Add Certificate"}
                   </button>
                 </div>
 
                 {showCertForm && (
-                  <form onSubmit={handleAddCert} className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl space-y-4">
+                  <form onSubmit={handleAddCert} className="p-4 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Certificate Name *</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Certificate Name *</label>
                         <input
                           type="text"
                           required
                           placeholder="e.g. AWS Certified Solutions Architect"
                           value={newCert.name}
                           onChange={(e) => setNewCert({ ...newCert, name: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200"
+                          className="w-full bg-white border border-sky-100 rounded-xl px-3 py-2 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Issued By *</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Issued By *</label>
                         <input
                           type="text"
                           required
                           placeholder="e.g. Amazon Web Services (AWS)"
                           value={newCert.issuedBy}
                           onChange={(e) => setNewCert({ ...newCert, issuedBy: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200"
+                          className="w-full bg-white border border-sky-100 rounded-xl px-3 py-2 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Issue Date *</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Issue Date *</label>
                         <input
                           type="date"
                           required
                           value={newCert.issueDate}
                           onChange={(e) => setNewCert({ ...newCert, issueDate: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono"
+                          className="w-full bg-white border border-sky-100 rounded-xl px-3 py-2 text-xs text-gray-900 font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Expiration Date (Optional)</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Expiration Date (Optional)</label>
                         <input
                           type="date"
                           value={newCert.expiryDate}
                           onChange={(e) => setNewCert({ ...newCert, expiryDate: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono"
+                          className="w-full bg-white border border-sky-100 rounded-xl px-3 py-2 text-xs text-gray-900 font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Verification URL</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Verification / Certificate URL</label>
                         <input
                           type="url"
                           placeholder="e.g. https://aws.verify-link.com/id/123"
                           value={newCert.credentialUrl}
                           onChange={(e) => setNewCert({ ...newCert, credentialUrl: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono"
+                          className="w-full bg-white border border-sky-100 rounded-xl px-3 py-2 text-xs text-gray-900 font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                     </div>
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-bold text-xs cursor-pointer"
+                      className="px-4 py-2 bg-sky-500 hover:bg-sky-600 rounded-lg text-white font-bold text-xs cursor-pointer"
                     >
-                      Save Certificate
+                      {editingCertId ? "Update Certificate" : "Save Certificate"}
                     </button>
                   </form>
                 )}
 
                 {/* List of certs */}
                 {certsList.length === 0 ? (
-                  <p className="text-[11px] text-slate-600 italic">No certifications listed.</p>
+                  <p className="text-[11px] text-gray-500 italic">No certifications listed.</p>
                 ) : (
                   <div className="space-y-3">
                     {certsList.map((cert: any) => (
-                      <div key={cert._id} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800/40 hover:border-slate-800 transition-colors flex items-center justify-between gap-4">
+                      <div key={cert._id} className="p-3 bg-sky-50/50 rounded-xl border border-sky-100 hover:border-sky-200 transition-colors flex items-center justify-between gap-4">
                         <div className="space-y-1">
-                          <span className="font-bold text-sm text-slate-200 block">{cert.name}</span>
-                          <p className="text-xs text-slate-400">Issued by {cert.issuedBy} • {new Date(cert.issueDate).toLocaleDateString()}</p>
+                          <span className="font-bold text-sm text-gray-950 block">{cert.name}</span>
+                          <p className="text-xs text-gray-600">Issued by {cert.issuedBy} &bull; Issued: {new Date(cert.issueDate).toLocaleDateString()}</p>
                           {cert.credentialUrl && (
                             <a
                               href={cert.credentialUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[10px] text-blue-400 font-mono inline-flex items-center gap-1"
+                              className="text-[10px] text-sky-600 font-mono inline-flex items-center gap-1 hover:underline"
                             >
                               <span>Verify Credential</span>
                               <ExternalLink className="w-2.5 h-2.5" />
                             </a>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleRemoveCert(cert._id)}
-                          className="p-1.5 hover:text-red-400 transition-colors text-slate-500 cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Expansions 4: INTERNSHIPS SECTIONS */}
-              <div className="p-5 bg-slate-900/4 rounded-2xl border border-slate-800/60 space-y-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-200">Internship Experience</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Add internships or industrial training experience to your profile.</p>
-                  </div>
-                  <button
-                    onClick={() => setShowInternForm(!showInternForm)}
-                    className="py-1 px-3 border border-slate-800 hover:bg-slate-900 hover:text-white rounded-lg text-xs font-bold font-mono text-blue-400 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {showInternForm ? "Close Form" : "Add Internship"}
-                  </button>
-                </div>
-
-                {showInternForm && (
-                  <form onSubmit={handleAddIntern} className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Company Name *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Google India"
-                          value={newIntern.companyName}
-                          onChange={(e) => setNewIntern({ ...newIntern, companyName: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Intern Position / Role *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Software Engineering Intern"
-                          value={newIntern.position}
-                          onChange={(e) => setNewIntern({ ...newIntern, position: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Start Date *</label>
-                        <input
-                          type="date"
-                          required
-                          value={newIntern.startDate}
-                          onChange={(e) => setNewIntern({ ...newIntern, startDate: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">End Date</label>
-                        <input
-                          type="date"
-                          disabled={newIntern.currentlyWorking}
-                          value={newIntern.endDate}
-                          onChange={(e) => setNewIntern({ ...newIntern, endDate: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono disabled:opacity-40"
-                        />
-                      </div>
-                      <div className="md:col-span-2 flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="curr_work_interns"
-                          checked={newIntern.currentlyWorking}
-                          onChange={(e) => setNewIntern({ ...newIntern, currentlyWorking: e.target.checked })}
-                          className="rounded text-blue-600 focus:ring-blue-500 bg-slate-900 border-slate-850"
-                        />
-                        <label htmlFor="curr_work_interns" className="text-xs text-slate-400 font-bold">Currently working as intern here</label>
-                      </div>
-                      <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Skills Gained (comma-separated)</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Python, Flask, PyTest"
-                          value={newIntern.skills}
-                          onChange={(e) => setNewIntern({ ...newIntern, skills: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Description</label>
-                        <textarea
-                          rows={3}
-                          placeholder="Describe your role, contributions and achievements..."
-                          value={newIntern.description}
-                          onChange={(e) => setNewIntern({ ...newIntern, description: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-200"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-bold text-xs cursor-pointer"
-                    >
-                      Save Internship
-                    </button>
-                  </form>
-                )}
-
-                {/* List */}
-                {intersList.length === 0 ? (
-                  <p className="text-[11px] text-slate-600 italic">No internships registered.</p>
-                ) : (
-                  <div className="space-y-3.5">
-                    {intersList.map((item: any) => (
-                      <div key={item._id} className="p-4 bg-slate-900/60 rounded-xl border border-slate-800/40 hover:border-slate-800 transition-colors flex items-start justify-between gap-4">
-                        <div className="space-y-2 flex-1">
-                          <div>
-                            <span className="font-bold text-slate-100 text-sm">{item.position}</span>
-                            <span className="text-xs text-blue-400 font-semibold block">{item.companyName}</span>
-                          </div>
-                          
-                          <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
-                          
-                          {item.skills && item.skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              {item.skills.map((s: string) => (
-                                <span key={s} className="px-2 py-0.5 bg-slate-950 font-mono text-[9px] font-bold text-slate-500 rounded border border-slate-900">{s}</span>
-                              ))}
-                            </div>
-                          )}
-
-                          <span className="text-[10px] text-slate-500 font-mono block">
-                            Duration: {new Date(item.duration.startDate).toLocaleDateString()} - {item.currentlyWorking ? "Present" : new Date(item.duration.endDate).toLocaleDateString()}
-                          </span>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCertId(cert._id);
+                              setNewCert({
+                                name: cert.name,
+                                issuedBy: cert.issuedBy,
+                                issueDate: cert.issueDate?.slice?.(0, 10) || cert.issueDate,
+                                expiryDate: cert.expiryDate || "",
+                                credentialUrl: cert.credentialUrl || "",
+                              });
+                              setShowCertForm(true);
+                            }}
+                            className="p-1.5 hover:text-sky-500 text-gray-400"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCert(cert._id)}
+                            className="p-1.5 hover:text-red-400 text-gray-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleRemoveIntern(item._id)}
-                          className="p-1.5 hover:text-red-400 transition-colors text-slate-500 cursor-pointer mt-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Expansions 5: WORK EXPERIENCES SECTIONS */}
-              <div className="p-5 bg-slate-900/4 rounded-2xl border border-slate-800/60 space-y-4">
+              {/* Portfolio Projects */}
+              <div className="p-5 bg-white rounded-2xl border border-sky-100 shadow-sm space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="font-bold text-sm text-slate-200">Work History</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Include any industrial SDE employment history, freelancing, or contract work.</p>
+                    <h3 className="font-bold text-sm text-gray-900 flex items-center gap-1.5">
+                      <Github className="w-4 h-4 text-gray-800" /> Portfolio Projects
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Showcase your personal or academic projects with links and descriptions.</p>
                   </div>
                   <button
-                    onClick={() => setShowWorkForm(!showWorkForm)}
-                    className="py-1 px-3 border border-slate-800 hover:bg-slate-900 hover:text-white rounded-lg text-xs font-bold font-mono text-blue-400 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {showWorkForm ? "Close Form" : "Add Work History"}
-                  </button>
-                </div>
-
-                {showWorkForm && (
-                  <form onSubmit={handleAddWork} className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Corporate Employer *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Acme Corp"
-                          value={newWork.companyName}
-                          onChange={(e) => setNewWork({ ...newWork, companyName: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Position / Title *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Associate Developer"
-                          value={newWork.position}
-                          onChange={(e) => setNewWork({ ...newWork, position: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Start Date *</label>
-                        <input
-                          type="date"
-                          required
-                          value={newWork.startDate}
-                          onChange={(e) => setNewWork({ ...newWork, startDate: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">End Date</label>
-                        <input
-                          type="date"
-                          disabled={newWork.currentlyWorking}
-                          value={newWork.endDate}
-                          onChange={(e) => setNewWork({ ...newWork, endDate: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono disabled:opacity-40"
-                        />
-                      </div>
-                      <div className="md:col-span-2 flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="curr_work_active"
-                          checked={newWork.currentlyWorking}
-                          onChange={(e) => setNewWork({ ...newWork, currentlyWorking: e.target.checked })}
-                          className="rounded text-blue-600 focus:ring-blue-500 bg-slate-900 border-slate-850"
-                        />
-                        <label htmlFor="curr_work_active" className="text-xs text-slate-400 font-bold">Currently working here</label>
-                      </div>
-                      <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Technologies Utilized (comma-separated)</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. TypeScript, React Native, Redis"
-                          value={newWork.skills}
-                          onChange={(e) => setNewWork({ ...newWork, skills: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono"
-                        />
-                      </div>
-                      <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Job Description</label>
-                        <textarea
-                          rows={3}
-                          placeholder="Summarize your coding, features delivered, and technical roles..."
-                          value={newWork.description}
-                          onChange={(e) => setNewWork({ ...newWork, description: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-200"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-bold text-xs cursor-pointer"
-                    >
-                      Save Employment History
-                    </button>
-                  </form>
-                )}
-
-                {/* List */}
-                {workList.length === 0 ? (
-                  <p className="text-[11px] text-slate-600 italic">No job employment logs registered.</p>
-                ) : (
-                  <div className="space-y-3.5">
-                    {workList.map((item: any) => (
-                      <div key={item._id} className="p-4 bg-slate-900/60 rounded-xl border border-slate-800/40 hover:border-slate-800 transition-colors flex items-start justify-between gap-4">
-                        <div className="space-y-2 flex-1">
-                          <div>
-                            <span className="font-bold text-slate-100 text-sm">{item.position}</span>
-                            <span className="text-xs text-indigo-450 font-semibold block">{item.companyName}</span>
-                          </div>
-
-                          <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
-
-                          {item.skills && item.skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              {item.skills.map((s: string) => (
-                                <span key={s} className="px-2 py-0.5 bg-slate-950 font-mono text-[9px] font-bold text-slate-500 rounded border border-slate-900">{s}</span>
-                              ))}
-                            </div>
-                          )}
-
-                          <span className="text-[10px] text-slate-500 font-mono block">
-                            Duration: {new Date(item.duration.startDate).toLocaleDateString()} - {item.currentlyWorking ? "Present" : new Date(item.duration.endDate).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveWork(item._id)}
-                          className="p-1.5 hover:text-red-400 transition-colors text-slate-500 cursor-pointer mt-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Expansions 6: PORTFOLIO PROJECTS SECTIONS */}
-              <div className="p-5 bg-slate-900/4 rounded-2xl border border-slate-800/60 space-y-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-200">Portfolio Projects</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Showcase your personal or academic projects with links to GitHub, live hosting and technical descriptions.</p>
-                  </div>
-                  <button
-                    onClick={() => setShowProjForm(!showProjForm)}
-                    className="py-1 px-3 border border-slate-800 hover:bg-slate-900 hover:text-white rounded-lg text-xs font-bold font-mono text-blue-400 flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => {
+                      setEditingProjId(null);
+                      setNewProj({ title: "", description: "", technologies: "", startDate: "", endDate: "", githubUrl: "", liveUrl: "" });
+                      setShowProjForm(!showProjForm);
+                    }}
+                    className="py-1 px-3 border border-sky-100 hover:bg-sky-50 hover:text-sky-700 transition-all rounded-lg text-xs font-bold font-mono text-sky-600 flex items-center gap-1.5 cursor-pointer"
                   >
                     {showProjForm ? "Close Form" : "Add Project"}
                   </button>
                 </div>
 
                 {showProjForm && (
-                  <form onSubmit={handleAddProj} className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl space-y-4">
+                  <form onSubmit={handleAddProj} className="p-4 bg-sky-50 border border-sky-100 rounded-xl space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Project Title *</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Project Title *</label>
                         <input
                           type="text"
                           required
                           placeholder="e.g. Collaborative Real-time Kanban Board"
                           value={newProj.title}
                           onChange={(e) => setNewProj({ ...newProj, title: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200"
+                          className="w-full bg-white border border-sky-100 rounded-xl px-3 py-2 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Project Description *</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Project Description *</label>
                         <textarea
                           rows={3}
                           required
-                          placeholder="Provide a comprehensive technical overview of components built and problems solved..."
+                          placeholder="Provide a comprehensive technical overview..."
                           value={newProj.description}
                           onChange={(e) => setNewProj({ ...newProj, description: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-200"
+                          className="w-full bg-white border border-sky-100 rounded-xl p-3 text-xs text-gray-900 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Core Tools / Frameworks used (comma-separated)</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Core Tools / Frameworks used (comma-separated)</label>
                         <input
                           type="text"
                           placeholder="e.g. Next.js, Redux Toolkit, Socket.io"
                           value={newProj.technologies}
                           onChange={(e) => setNewProj({ ...newProj, technologies: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 font-mono"
+                          className="w-full bg-white border border-sky-100 rounded-xl p-2.5 text-xs text-gray-900 font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">GitHub Source Code Link URL</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">GitHub Source Code Link URL</label>
                         <input
                           type="url"
                           placeholder="e.g. https://github.com/profile/repo"
                           value={newProj.githubUrl}
                           onChange={(e) => setNewProj({ ...newProj, githubUrl: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-slate-200 font-mono"
+                          className="w-full bg-white border border-sky-100 rounded-xl p-2 text-xs text-gray-900 font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500">Live Website / Demo URL</label>
+                        <label className="text-[10px] uppercase font-bold text-gray-700">Live Website / Demo URL</label>
                         <input
                           type="url"
                           placeholder="e.g. https://myproject-interactive.com"
                           value={newProj.liveUrl}
                           onChange={(e) => setNewProj({ ...newProj, liveUrl: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-slate-200 font-mono"
+                          className="w-full bg-white border border-sky-100 rounded-xl p-2 text-xs text-gray-900 font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
                       </div>
                     </div>
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-bold text-xs cursor-pointer"
+                      className="px-4 py-2 bg-sky-500 hover:bg-sky-600 rounded-lg text-white font-bold text-xs cursor-pointer"
                     >
-                      Save Portfolio Project
+                      {editingProjId ? "Update Project" : "Save Portfolio Project"}
                     </button>
                   </form>
                 )}
 
-                {/* List */}
+                {/* List of projects */}
                 {projectsList.length === 0 ? (
-                  <p className="text-[11px] text-slate-600 italic font-medium">No projects listed.</p>
+                  <p className="text-[11px] text-gray-500 italic font-medium">No projects listed.</p>
                 ) : (
                   <div className="space-y-3.5">
                     {projectsList.map((proj: any) => (
-                      <div key={proj._id} className="p-4 bg-slate-900/60 rounded-xl border border-slate-800/40 hover:border-slate-800 transition-colors flex items-start justify-between gap-4">
+                      <div key={proj._id} className="p-4 bg-sky-50/50 rounded-xl border border-sky-100 hover:border-sky-200 transition-colors flex items-start justify-between gap-4">
                         <div className="space-y-2 flex-1">
-                          <span className="font-bold text-slate-100 text-sm block">{proj.title}</span>
-                          <p className="text-xs text-slate-400 leading-relaxed">{proj.description}</p>
+                          <span className="font-bold text-gray-950 text-sm block">{proj.title}</span>
+                          <p className="text-xs text-gray-600 leading-relaxed">{proj.description}</p>
                           
                           {proj.technologies && proj.technologies.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pt-1">
                               {proj.technologies.map((t: string) => (
-                                <span key={t} className="px-2 py-0.5 bg-slate-950 font-mono text-[9px] font-bold text-slate-500 rounded border border-slate-900">{t}</span>
+                                <span key={t} className="px-2 py-0.5 bg-sky-100 font-mono text-[9px] font-bold text-sky-600 rounded border border-sky-200">{t}</span>
                               ))}
                             </div>
                           )}
@@ -1395,10 +1224,10 @@ export default function StudentProfilePage() {
                                 href={proj.githubUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-[10px] text-blue-400 font-mono inline-flex items-center gap-1 hover:underline"
+                                className="text-[10px] text-sky-600 font-mono inline-flex items-center gap-1 hover:underline"
                               >
+                                <Github className="w-3 h-3 text-gray-800" />
                                 <span>Code Base</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
                               </a>
                             )}
                             {proj.liveUrl && (
@@ -1406,20 +1235,38 @@ export default function StudentProfilePage() {
                                 href={proj.liveUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-[10px] text-emerald-400 font-mono inline-flex items-center gap-1 hover:underline"
+                                className="text-[10px] text-sky-600 font-mono inline-flex items-center gap-1 hover:underline"
                               >
+                                <ExternalLink className="w-2.5 h-2.5 text-sky-550" />
                                 <span>Live Demo</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
                               </a>
                             )}
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleRemoveProj(proj._id)}
-                          className="p-1.5 hover:text-red-400 transition-colors text-slate-500 cursor-pointer mt-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex gap-1 mt-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingProjId(proj._id);
+                              setNewProj({
+                                title: proj.title,
+                                description: proj.description,
+                                technologies: (proj.technologies || []).join(", "),
+                                startDate: proj.startDate?.slice?.(0, 10) || proj.startDate || "",
+                                endDate: proj.endDate?.slice?.(0, 10) || proj.endDate || "",
+                                githubUrl: proj.githubUrl || "",
+                                liveUrl: proj.liveUrl || "",
+                              });
+                              setShowProjForm(true);
+                            }}
+                            className="p-1.5 hover:text-sky-500 text-gray-400"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button type="button" onClick={() => handleRemoveProj(proj._id)} className="p-1.5 hover:text-red-400 text-gray-400">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

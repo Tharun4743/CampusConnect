@@ -1,12 +1,9 @@
 import { Router, Response } from "express";
-import crypto from "crypto";
-import { db, StudentDetails, Certification, Internship, WorkExperience, Project } from "../lib/mongodb.js";
+import { db, createSupabaseClient } from "../lib/postgresql.js";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
-import { calculateProfileCompletion } from "../utils/calculateProfileCompletion.js";
 
 const router = Router();
 
-// Helper to check student role
 const studentRoleCheck = (req: AuthenticatedRequest, res: Response, next: () => void) => {
   if (!req.user || req.user.role !== "student") {
     return res.status(403).json({
@@ -18,43 +15,128 @@ const studentRoleCheck = (req: AuthenticatedRequest, res: Response, next: () => 
   next();
 };
 
+function toStructuredProfile(flatProfile: any) {
+  let parsedAddress: any = {};
+  if (flatProfile.address && flatProfile.address.startsWith("{")) {
+    try {
+      parsedAddress = JSON.parse(flatProfile.address);
+    } catch (e) {}
+  } else if (flatProfile.address) {
+    parsedAddress.street = flatProfile.address;
+  }
+
+  return {
+    success: true,
+    data: {
+      personalInfo: {
+        name: flatProfile.name || "",
+        email: flatProfile.email || "",
+        roll_number: flatProfile.roll_number || "",
+        department: flatProfile.department || "",
+        batch_year: flatProfile.batch_year || "",
+        dateOfBirth: flatProfile.date_of_birth ? new Date(flatProfile.date_of_birth).toISOString().split('T')[0] : "",
+        gender: flatProfile.gender || "",
+        bloodGroup: parsedAddress.bloodGroup || "",
+        phoneNumber: flatProfile.phone || "",
+        parentPhoneNumber: parsedAddress.parentPhoneNumber || "",
+        address: {
+          street: parsedAddress.street || "",
+          city: parsedAddress.city || "",
+          state: parsedAddress.state || "",
+          pincode: parsedAddress.pincode || "",
+          country: parsedAddress.country || "India"
+        },
+        emergencyContact: parsedAddress.emergencyContact || { name: "", relationship: "", phoneNumber: "" },
+        linkedin_url: parsedAddress.linkedin_url || "",
+        github_url: parsedAddress.github_url || ""
+      },
+      academicInfo: {
+        class10Percentage: flatProfile.sslc_percentage || 0,
+        class12Percentage: flatProfile.hsc_percentage || 0,
+        diplomaPercentage: flatProfile.diploma_percentage || null,
+        cgpa: flatProfile.cgpa || 0,
+        currentArrears: flatProfile.current_arrears || 0,
+        historyOfArrears: flatProfile.history_of_arrears || 0,
+        schoolName: parsedAddress.schoolName || "",
+        schoolCity: parsedAddress.schoolCity || "",
+        collegeName: parsedAddress.collegeName || "VSB",
+        collegeCity: parsedAddress.collegeCity || ""
+      },
+      professionalInfo: {
+        skills: [...(flatProfile.technical_skills || []), ...(flatProfile.soft_skills || [])],
+        technical_skills: flatProfile.technical_skills || [],
+        soft_skills: flatProfile.soft_skills || [],
+        projects: (flatProfile.projects || []).map((p: any) => {
+          let pDesc = p.description || "";
+          let githubUrl = "";
+          let liveUrl = "";
+          if (pDesc.startsWith("{")) {
+            try {
+              const parsed = JSON.parse(pDesc);
+              pDesc = parsed.description || "";
+              githubUrl = parsed.githubUrl || "";
+              liveUrl = parsed.liveUrl || "";
+            } catch (e) {}
+          }
+          return {
+            _id: p.id,
+            title: p.title,
+            technologies: p.technologies || [],
+            description: pDesc,
+            githubUrl,
+            liveUrl
+          };
+        }),
+        certifications: (flatProfile.certifications || []).map((c: any) => {
+          let issuer = c.issuer || "";
+          let verification_url = "";
+          let issue_date = "";
+          let expiryDate = "";
+          if (issuer.startsWith("{")) {
+            try {
+              const parsed = JSON.parse(issuer);
+              issuer = parsed.issuer || "";
+              verification_url = parsed.verification_url || "";
+              issue_date = parsed.issue_date || "";
+              expiryDate = parsed.expiryDate || "";
+            } catch (e) {}
+          }
+          return {
+            _id: c.id,
+            name: c.name,
+            issuedBy: issuer,
+            issueDate: issue_date || (c.uploaded_at ? new Date(c.uploaded_at).toISOString().split('T')[0] : ""),
+            expiryDate,
+            credentialUrl: verification_url || c.certificate_url || ""
+          };
+        })
+      },
+      profileSettings: {
+        lastProfileUpdate: flatProfile.updated_at
+      }
+    }
+  };
+}
+
 // ==========================================
 // 1. GET /api/student/profile
 // ==========================================
 router.get("/profile", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.userId;
-    let profile = await db.getStudentDetails(userId);
+    const profile = await db.getStudentProfile(userId);
 
-    if (!profile) {
-      // If student details document is missing, let's create a base one
-      await db.createStudentDetails({
-        user_id: userId,
-        roll_number: "NOT_SET",
-        branch: "General",
-        batch_year: new Date().getFullYear(),
-        cgpa: 0.0,
-      });
-      profile = await db.getStudentDetails(userId);
+    if (!profile || !profile.roll_number) {
+      // Ensure details exist in student_details
+      const { data: details } = await (await createSupabaseClient()).from("student_details").select("*").eq("user_id", userId).maybeSingle();
+      if (!details) {
+        await (await createSupabaseClient()).from("student_details").insert({ user_id: userId, profile_completion: 10 });
+      }
+      const newProfile = await db.getStudentProfile(userId);
+      return res.status(200).json(toStructuredProfile(newProfile));
     }
 
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "No candidate student profile was found for your account.",
-        data: null,
-      });
-    }
-
-    // Recalculate completion metrics
-    const profileCompletion = calculateProfileCompletion(profile);
-    const updated = await db.updateStudentDetails(userId, { profileCompletion });
-
-    return res.status(200).json({
-      success: true,
-      message: "Profile retrieved successfully",
-      data: updated,
-    });
+    return res.status(200).json(toStructuredProfile(profile));
   } catch (error: any) {
     console.error("GET /profile failed:", error);
     return res.status(500).json({
@@ -71,425 +153,123 @@ router.get("/profile", authMiddleware, studentRoleCheck, async (req: Authenticat
 router.put("/profile", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.userId;
-    const { personalInfo, academicInfo, professionalInfo } = req.body;
+    const data = req.body;
 
-    // Direct Validation rules from SPEC
-    if (personalInfo?.phoneNumber && !/^\d{10}$/.test(personalInfo.phoneNumber)) {
+    // Field-level validations
+    if (data.personalInfo?.phoneNumber && !/^\d{10}$/.test(data.personalInfo.phoneNumber)) {
       return res.status(400).json({
         success: false,
         message: "Phone number validation failed: must be exactly 10 numeric digits.",
-        data: null,
       });
     }
 
-    if (personalInfo?.emergencyContact?.phoneNumber && !/^\d{10}$/.test(personalInfo.emergencyContact.phoneNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: "Emergency contact telephone validation failed: must be exactly 10 digits.",
-        data: null,
-      });
-    }
-
-    if (academicInfo?.class10Percentage !== undefined && (academicInfo.class10Percentage < 0 || academicInfo.class10Percentage > 100)) {
+    if (data.academicInfo?.class10Percentage !== undefined && (Number(data.academicInfo.class10Percentage) < 0 || Number(data.academicInfo.class10Percentage) > 100)) {
       return res.status(400).json({
         success: false,
         message: "Academic standard error: 10th class percentage must reside in 0-100% boundary.",
-        data: null,
       });
     }
 
-    if (academicInfo?.class12Percentage !== undefined && (academicInfo.class12Percentage < 0 || academicInfo.class12Percentage > 100)) {
+    if (data.academicInfo?.class12Percentage !== undefined && (Number(data.academicInfo.class12Percentage) < 0 || Number(data.academicInfo.class12Percentage) > 100)) {
       return res.status(400).json({
         success: false,
         message: "Academic standard error: 12th class percentage must reside in 0-100% boundary.",
-        data: null,
       });
     }
 
-    if (professionalInfo?.summary && professionalInfo.summary.length > 500) {
-      return res.status(400).json({
-        success: false,
-        message: "Character limit breached: Career Summary contains more than 500 characters.",
-        data: null,
-      });
-    }
+    await db.updateStudentProfile(userId, data);
 
-    // Step updates
-    const updates: Partial<StudentDetails> = {};
-    if (personalInfo) updates.personalInfo = personalInfo;
-    if (academicInfo) updates.academicInfo = academicInfo;
-    if (professionalInfo?.summary !== undefined) {
-      const current = await db.getStudentDetails(userId);
-      const currentProf = current?.professionalInfo || {};
-      updates.professionalInfo = { ...currentProf, summary: professionalInfo.summary };
-    }
+    // Recalculate completions & ATS score
+    await db.calculateProfileCompletion(userId);
+    await db.calculateAtsScore(userId);
 
-    // Update settings timestamp
-    updates.profileSettings = {
-      profileVisibility: "tpo_only",
-      lastProfileUpdate: new Date().toISOString()
-    };
-
-    // Update database profile
-    let updatedProfile = await db.updateStudentDetails(userId, updates);
-
-    // Compute completions
-    const currentCompletion = calculateProfileCompletion(updatedProfile);
-    updatedProfile = await db.updateStudentDetails(userId, { profileCompletion: currentCompletion });
-
-    return res.status(200).json({
-      success: true,
-      message: "Student profile metrics updated successfully",
-      data: updatedProfile,
-    });
+    const fullProfile = await db.getStudentProfile(userId);
+    return res.status(200).json(toStructuredProfile(fullProfile));
   } catch (error: any) {
     console.error("PUT /profile failed:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to update profile parameters.",
-      data: null,
+      message: error.message || "Failed to update profile.",
     });
   }
 });
 
 // ==========================================
-// 3. PUT /api/student/profile/skills
+// 3. PUT /api/student/profile/skills (CR&D)
 // ==========================================
 router.put("/profile/skills", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.userId;
-    const { action, skill } = req.body;
+    const { action, type, skill, level, oldSkill } = req.body;
 
-    if (!action || !skill || skill.trim() === "") {
-      return res.status(400).json({
-        success: false,
-        message: "Missing parameters: 'action' (add/remove) and 'skill' value are required.",
-        data: null,
-      });
+    if (!action || !type || !skill) {
+      return res.status(400).json({ success: false, message: "Action, type, and skill name are required." });
     }
 
-    const currentProfile = await db.getStudentDetails(userId);
-    if (!currentProfile) {
-      return res.status(404).json({ success: false, message: "Profile not found", data: null });
-    }
+    const profile = await db.getStudentProfile(userId);
+    let technical_skills = profile.technical_skills || [];
+    let soft_skills = profile.soft_skills || [];
 
-    const profInfo = currentProfile.professionalInfo || { skills: [], certifications: [], internships: [], workExperience: [], projects: [] };
-    let skillsArray = profInfo.skills || [];
+    const cleanSkill = skill.trim();
+    const skillWithLevel = level ? `${cleanSkill}:${level}` : `${cleanSkill}:Intermediate`;
 
-    const normalizedSkill = skill.trim();
-
-    if (action === "add") {
-      // Check duplicate (case-insensitive)
-      const exists = skillsArray.some((s) => s.toLowerCase() === normalizedSkill.toLowerCase());
-      if (exists) {
-        return res.status(400).json({
-          success: false,
-          message: `The technology skill "${normalizedSkill}" is already added to your credentials list.`,
-          data: null,
-        });
+    if (type === "technical") {
+      if (action === "add") {
+        const exists = technical_skills.some((s: string) => s.split(":")[0].toLowerCase() === cleanSkill.toLowerCase());
+        if (!exists) {
+          technical_skills.push(skillWithLevel);
+        }
+      } else if (action === "delete" || action === "remove") {
+        technical_skills = technical_skills.filter((s: string) => s.split(":")[0].toLowerCase() !== cleanSkill.toLowerCase());
+      } else if (action === "update") {
+        const target = oldSkill ? oldSkill.trim() : cleanSkill;
+        technical_skills = technical_skills.map((s: string) => 
+          s.split(":")[0].toLowerCase() === target.toLowerCase() ? skillWithLevel : s
+        );
       }
-
-      // Check max skills limit of 20
-      if (skillsArray.length >= 20) {
-        return res.status(400).json({
-          success: false,
-          message: "Maximum 20 candidate skills are allowed on your academic portfolio catalog.",
-          data: null,
-        });
+    } else if (type === "soft") {
+      if (action === "add") {
+        const exists = soft_skills.some((s: string) => s.split(":")[0].toLowerCase() === cleanSkill.toLowerCase());
+        if (!exists) {
+          soft_skills.push(skillWithLevel);
+        }
+      } else if (action === "delete" || action === "remove") {
+        soft_skills = soft_skills.filter((s: string) => s.split(":")[0].toLowerCase() !== cleanSkill.toLowerCase());
+      } else if (action === "update") {
+        const target = oldSkill ? oldSkill.trim() : cleanSkill;
+        soft_skills = soft_skills.map((s: string) => 
+          s.split(":")[0].toLowerCase() === target.toLowerCase() ? skillWithLevel : s
+        );
       }
-
-      skillsArray = [...skillsArray, normalizedSkill];
-    } else if (action === "remove") {
-      skillsArray = skillsArray.filter((s) => s.toLowerCase() !== normalizedSkill.toLowerCase());
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid action specifier: Action must represent 'add' or 'remove'.",
-        data: null,
-      });
     }
 
-    // Save
-    const updatedProf = { ...profInfo, skills: skillsArray };
-    let updatedProfile = await db.updateStudentDetails(userId, { professionalInfo: updatedProf });
+    await db.updateStudentProfile(userId, { technical_skills, soft_skills });
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
 
-    // Recalculate and update completion
-    const completion = calculateProfileCompletion(updatedProfile);
-    updatedProfile = await db.updateStudentDetails(userId, { profileCompletion: completion });
+    const fullProfile = await db.getStudentProfile(userId);
+    const structured = toStructuredProfile(fullProfile);
 
     return res.status(200).json({
       success: true,
-      message: action === "add" ? "Skill added successfully" : "Skill removed successfully",
-      data: updatedProfile.professionalInfo,
+      message: "Skills updated successfully",
+      data: {
+        skills: structured.data.professionalInfo.skills,
+        technical_skills: structured.data.professionalInfo.technical_skills,
+        soft_skills: structured.data.professionalInfo.soft_skills
+      },
     });
   } catch (error: any) {
     console.error("PUT /profile/skills failed:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to edit skills portfolio.",
-      data: null,
+      message: error.message || "Failed to update skills portfolio.",
     });
   }
 });
 
 // ==========================================
-// 4. PUT /api/student/profile/certifications
-// ==========================================
-router.put("/profile/certifications", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.userId;
-    const { action, certification } = req.body;
-
-    if (!action || !certification) {
-      return res.status(400).json({
-        success: false,
-        message: "Required payloads missing: 'action' (add/update/delete) and 'certification' details are required.",
-        data: null,
-      });
-    }
-
-    const currentProfile = await db.getStudentDetails(userId);
-    if (!currentProfile) {
-      return res.status(404).json({ success: false, message: "Profile not found", data: null });
-    }
-
-    const profInfo = currentProfile.professionalInfo || { skills: [], certifications: [], internships: [], workExperience: [], projects: [] };
-    let certsList = [...(profInfo.certifications || [])];
-
-    if (action === "add") {
-      if (!certification.name || !certification.issuedBy || !certification.issueDate) {
-        return res.status(400).json({
-          success: false,
-          message: "Validation Error: Certificate Name, Issuing Entity, and Issue Date are mandatory.",
-          data: null,
-        });
-      }
-      const newCert: Certification = {
-        _id: crypto.randomUUID(),
-        name: certification.name.trim(),
-        issuedBy: certification.issuedBy.trim(),
-        issueDate: certification.issueDate,
-        expiryDate: certification.expiryDate || undefined,
-        credentialUrl: certification.credentialUrl || undefined,
-      };
-      certsList.push(newCert);
-    } else if (action === "update") {
-      const idx = certsList.findIndex((c) => c._id === certification._id);
-      if (idx === -1) {
-        return res.status(404).json({
-          success: false,
-          message: "Target Certification document ID not found under current student profile catalog.",
-          data: null,
-        });
-      }
-      certsList[idx] = {
-        ...certsList[idx],
-        ...certification,
-      };
-    } else if (action === "delete") {
-      certsList = certsList.filter((c) => c._id !== certification._id);
-    } else {
-      return res.status(400).json({ success: false, message: "Action must represent add, update, or delete.", data: null });
-    }
-
-    const updatedProf = { ...profInfo, certifications: certsList };
-    let updatedProfile = await db.updateStudentDetails(userId, { professionalInfo: updatedProf });
-
-    // Recalculate
-    const completion = calculateProfileCompletion(updatedProfile);
-    updatedProfile = await db.updateStudentDetails(userId, { profileCompletion: completion });
-
-    return res.status(200).json({
-      success: true,
-      message: `Certification action '${action}' completed successfully.`,
-      data: updatedProfile.professionalInfo,
-    });
-  } catch (error: any) {
-    console.error("PUT /profile/certifications failed:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update professional certification.",
-      data: null,
-    });
-  }
-});
-
-// ==========================================
-// 5. PUT /api/student/profile/internships
-// ==========================================
-router.put("/profile/internships", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.userId;
-    const { action, internship } = req.body;
-
-    if (!action || !internship) {
-      return res.status(400).json({
-        success: false,
-        message: "Required parameters missing: Action (add/update/delete) and Internship body required.",
-        data: null,
-      });
-    }
-
-    const currentProfile = await db.getStudentDetails(userId);
-    if (!currentProfile) {
-      return res.status(404).json({ success: false, message: "Profile not found", data: null });
-    }
-
-    const profInfo = currentProfile.professionalInfo || { skills: [], certifications: [], internships: [], workExperience: [], projects: [] };
-    let internshipsList = [...(profInfo.internships || [])];
-
-    if (action === "add") {
-      if (!internship.companyName || !internship.position || !internship.duration?.startDate) {
-        return res.status(400).json({
-          success: false,
-          message: "Validation Error: Company Name, Role Position, and Active Start-Date parameters are mandatory.",
-          data: null,
-        });
-      }
-      const newIntern: Internship = {
-        _id: crypto.randomUUID(),
-        companyName: internship.companyName.trim(),
-        position: internship.position.trim(),
-        duration: {
-          startDate: internship.duration.startDate,
-          endDate: internship.currentlyWorking ? undefined : internship.duration.endDate,
-        },
-        currentlyWorking: !!internship.currentlyWorking,
-        description: internship.description || "",
-        skills: internship.skills || [],
-      };
-      internshipsList.push(newIntern);
-    } else if (action === "update") {
-      const idx = internshipsList.findIndex((i) => i._id === internship._id);
-      if (idx === -1) {
-        return res.status(404).json({ success: false, message: "Internship record not found", data: null });
-      }
-      internshipsList[idx] = {
-        ...internshipsList[idx],
-        ...internship,
-        duration: {
-          startDate: internship.duration?.startDate || internshipsList[idx].duration.startDate,
-          endDate: internship.currentlyWorking ? undefined : (internship.duration?.endDate || internshipsList[idx].duration.endDate),
-        },
-        currentlyWorking: !!internship.currentlyWorking,
-      };
-    } else if (action === "delete") {
-      internshipsList = internshipsList.filter((i) => i._id !== internship._id);
-    } else {
-      return res.status(400).json({ success: false, message: "Action must represent add, update, or delete.", data: null });
-    }
-
-    const updatedProf = { ...profInfo, internships: internshipsList };
-    let updatedProfile = await db.updateStudentDetails(userId, { professionalInfo: updatedProf });
-
-    // Recalculate
-    const completion = calculateProfileCompletion(updatedProfile);
-    updatedProfile = await db.updateStudentDetails(userId, { profileCompletion: completion });
-
-    return res.status(200).json({
-      success: true,
-      message: `Internship record action '${action}' completed successfully.`,
-      data: updatedProfile.professionalInfo,
-    });
-  } catch (error: any) {
-    console.error("PUT /profile/internships failed:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update internship details.",
-      data: null,
-    });
-  }
-});
-
-// ==========================================
-// 6. PUT /api/student/profile/workexperience
-// ==========================================
-router.put("/profile/workexperience", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.userId;
-    const { action, workExperience } = req.body;
-
-    if (!action || !workExperience) {
-      return res.status(400).json({
-        success: false,
-        message: "Required parameters missing: Action (add/update/delete) and Work Experience body required.",
-        data: null,
-      });
-    }
-
-    const currentProfile = await db.getStudentDetails(userId);
-    if (!currentProfile) {
-      return res.status(404).json({ success: false, message: "Profile not found", data: null });
-    }
-
-    const profInfo = currentProfile.professionalInfo || { skills: [], certifications: [], internships: [], workExperience: [], projects: [] };
-    let workList = [...(profInfo.workExperience || [])];
-
-    if (action === "add") {
-      if (!workExperience.companyName || !workExperience.position || !workExperience.duration?.startDate) {
-        return res.status(400).json({
-          success: false,
-          message: "Validation Error: Corporate Employer, Position Role, and Employment Start-Date parameters are mandatory.",
-          data: null,
-        });
-      }
-      const newWork: WorkExperience = {
-        _id: crypto.randomUUID(),
-        companyName: workExperience.companyName.trim(),
-        position: workExperience.position.trim(),
-        duration: {
-          startDate: workExperience.duration.startDate,
-          endDate: workExperience.currentlyWorking ? undefined : workExperience.duration.endDate,
-        },
-        currentlyWorking: !!workExperience.currentlyWorking,
-        description: workExperience.description || "",
-        skills: workExperience.skills || [],
-      };
-      workList.push(newWork);
-    } else if (action === "update") {
-      const idx = workList.findIndex((w) => w._id === workExperience._id);
-      if (idx === -1) {
-        return res.status(404).json({ success: false, message: "Work experience record not found", data: null });
-      }
-      workList[idx] = {
-        ...workList[idx],
-        ...workExperience,
-        duration: {
-          startDate: workExperience.duration?.startDate || workList[idx].duration.startDate,
-          endDate: workExperience.currentlyWorking ? undefined : (workExperience.duration?.endDate || workList[idx].duration.endDate),
-        },
-        currentlyWorking: !!workExperience.currentlyWorking,
-      };
-    } else if (action === "delete") {
-      workList = workList.filter((w) => w._id !== workExperience._id);
-    } else {
-      return res.status(400).json({ success: false, message: "Action must represent add, update, or delete.", data: null });
-    }
-
-    const updatedProf = { ...profInfo, workExperience: workList };
-    let updatedProfile = await db.updateStudentDetails(userId, { professionalInfo: updatedProf });
-
-    // Recalculate
-    const completion = calculateProfileCompletion(updatedProfile);
-    updatedProfile = await db.updateStudentDetails(userId, { profileCompletion: completion });
-
-    return res.status(200).json({
-      success: true,
-      message: `Work Experience record action '${action}' completed successfully.`,
-      data: updatedProfile.professionalInfo,
-    });
-  } catch (error: any) {
-    console.error("PUT /profile/workexperience failed:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update work experience records.",
-      data: null,
-    });
-  }
-});
-
-// ==========================================
-// 7. PUT /api/student/profile/projects
+// 4. PROJECTS MANAGEMENT PUT (add/update/delete)
 // ==========================================
 router.put("/profile/projects", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
@@ -497,177 +277,179 @@ router.put("/profile/projects", authMiddleware, studentRoleCheck, async (req: Au
     const { action, project } = req.body;
 
     if (!action || !project) {
-      return res.status(400).json({
-        success: false,
-        message: "Required parameters missing: Action (add/update/delete) and Project body required.",
-        data: null,
-      });
+      return res.status(400).json({ success: false, message: "Action and project parameters are required." });
     }
-
-    const currentProfile = await db.getStudentDetails(userId);
-    if (!currentProfile) {
-      return res.status(404).json({ success: false, message: "Profile not found", data: null });
-    }
-
-    const profInfo = currentProfile.professionalInfo || { skills: [], certifications: [], internships: [], workExperience: [], projects: [] };
-    let projectsList = [...(profInfo.projects || [])];
 
     if (action === "add") {
-      if (!project.title || !project.description) {
-        return res.status(400).json({
-          success: false,
-          message: "Validation Error: Project Title, and a comprehensive Description are mandatory.",
-          data: null,
-        });
-      }
-      const newProj: Project = {
-        _id: crypto.randomUUID(),
-        title: project.title.trim(),
-        description: project.description.trim(),
+      const serializedDesc = JSON.stringify({
+        description: project.description || "",
+        githubUrl: project.githubUrl || "",
+        liveUrl: project.liveUrl || ""
+      });
+      await db.addProject(userId, {
+        title: project.title,
         technologies: project.technologies || [],
-        startDate: project.startDate || undefined,
-        endDate: project.endDate || undefined,
-        githubUrl: project.githubUrl || undefined,
-        liveUrl: project.liveUrl || undefined,
-        highlights: project.highlights || [],
-      };
-      projectsList.push(newProj);
+        description: serializedDesc
+      });
     } else if (action === "update") {
-      const idx = projectsList.findIndex((p) => p._id === project._id);
-      if (idx === -1) {
-        return res.status(404).json({ success: false, message: "Project record not found", data: null });
-      }
-      projectsList[idx] = {
-        ...projectsList[idx],
-        ...project,
-      };
+      const serializedDesc = JSON.stringify({
+        description: project.description || "",
+        githubUrl: project.githubUrl || "",
+        liveUrl: project.liveUrl || ""
+      });
+      await db.updateProject(userId, project._id, {
+        title: project.title,
+        technologies: project.technologies || [],
+        description: serializedDesc
+      });
     } else if (action === "delete") {
-      projectsList = projectsList.filter((p) => p._id !== project._id);
-    } else {
-      return res.status(400).json({ success: false, message: "Action must represent add, update, or delete.", data: null });
+      await db.deleteProject(userId, project._id);
     }
 
-    const updatedProf = { ...profInfo, projects: projectsList };
-    let updatedProfile = await db.updateStudentDetails(userId, { professionalInfo: updatedProf });
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
 
-    // Recalculate
-    const completion = calculateProfileCompletion(updatedProfile);
-    updatedProfile = await db.updateStudentDetails(userId, { profileCompletion: completion });
+    const fullProfile = await db.getStudentProfile(userId);
+    const structured = toStructuredProfile(fullProfile);
 
     return res.status(200).json({
       success: true,
-      message: `Project record action '${action}' completed successfully.`,
-      data: updatedProfile.professionalInfo,
+      message: "Projects updated successfully",
+      data: structured.data.professionalInfo
     });
   } catch (error: any) {
     console.error("PUT /profile/projects failed:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update project data logs.",
-      data: null,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
 // ==========================================
-// 8. POST /api/student/profile/ai-consult
+// 5. CERTIFICATIONS MANAGEMENT PUT (add/update/delete)
 // ==========================================
-router.post("/profile/ai-consult", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+router.put("/profile/certifications", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.userId;
-    const profile = await db.getStudentDetails(userId);
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "No student profile was found to perform analysis on.",
-      });
+    const { action, certification } = req.body;
+
+    if (!action || !certification) {
+      return res.status(400).json({ success: false, message: "Action and certification parameters are required." });
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY || "";
-    if (!apiKey || apiKey.trim() === "") {
-      return res.status(400).json({
-        success: false,
-        message: "AI Consultation Setup: No active AI API key configuration was found in the server .env environment variables context.",
+    if (action === "add") {
+      const serializedIssuer = JSON.stringify({
+        issuer: certification.issuedBy || "",
+        verification_url: certification.credentialUrl || "",
+        issue_date: certification.issueDate || "",
+        expiryDate: certification.expiryDate || ""
       });
+      await db.addCertification(userId, {
+        name: certification.name,
+        issuer: serializedIssuer,
+        certificate_url: certification.credentialUrl || ""
+      });
+    } else if (action === "update") {
+      const serializedIssuer = JSON.stringify({
+        issuer: certification.issuedBy || "",
+        verification_url: certification.credentialUrl || "",
+        issue_date: certification.issueDate || "",
+        expiryDate: certification.expiryDate || ""
+      });
+      await db.updateCertification(userId, certification._id, {
+        name: certification.name,
+        issuer: serializedIssuer,
+        certificate_url: certification.credentialUrl || ""
+      });
+    } else if (action === "delete") {
+      await db.deleteCertification(userId, certification._id);
     }
 
-    const userDoc = await db.findUserById(userId);
-    const name = userDoc?.name || "Student Candidate";
-    const branch = profile.branch || "General";
-    const cgpa = profile.cgpa || 0;
-    const skills = profile.professionalInfo?.skills || [];
-    const summary = profile.professionalInfo?.summary || "Not set yet";
-    const certifications = profile.professionalInfo?.certifications || [];
-    const internships = profile.professionalInfo?.internships || [];
-    const workExperience = profile.professionalInfo?.workExperience || [];
-    const projects = profile.professionalInfo?.projects || [];
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
 
-    const prompt = `You are an expert AI Career and Placement Advisor for standard college recruitment drives. 
-Analyze the student's profile details below and provide a concise, constructive, actionable critique. Your goal is to help them win job offers.
-
-[Student Profile details]
-Name: ${name}
-Branch/Major: ${branch}
-Academic GPA: ${cgpa}/10.0
-Technology Skills: ${skills.join(", ")}
-Professional Career Summary: "${summary}"
-Certifications: ${certifications.map((c: any) => `${c.name} (Issued by ${c.issuedBy})`).join("; ") || "None"}
-Internships: ${internships.map((i: any) => `${i.position} at ${i.companyName} (${i.description})`).join("; ") || "None"}
-Projects: ${projects.map((p: any) => `${p.title}: ${p.description}`).join("; ") || "None"}
-
-Please structure your response in clear, elegant, readable markdown sections:
-1. 📈 **Profile Strength Score** (Give a rating out of 10 and a brief elevator summary)
-2. 💡 **Actionable Improvements** (Suggest 2-3 precise things to add or clarify in their skills, projects, or summary)
-3. 🎯 **Target Job Roles** (List 2-3 suitable job profiles they should apply for)
-4. 🚀 **Interview Success Tip** (Give a highly relevant and motivational prep advice based on their background)
-
-Keep the writing crisp, professional, human, and encouraging. Return ONLY markdown. No system chatter.`;
-
-    const requestBody = {
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "user",
-          content: prompt
-        }
-      ]
-    };
-
-    // Use global fetch
-    const aiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://ai.studio/build",
-        "X-Title": "Campus Connect"
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error("OpenRouter API error response:", errText);
-      return res.status(502).json({
-        success: false,
-        message: `Failed to fetch critique from OpenRouter upstream service. Status: ${aiResponse.status}`,
-      });
-    }
-
-    const data = await aiResponse.json() as any;
-    const contents = data.choices?.[0]?.message?.content || "No advice returned by advisor.";
+    const fullProfile = await db.getStudentProfile(userId);
+    const structured = toStructuredProfile(fullProfile);
 
     return res.status(200).json({
       success: true,
-      message: "AI analysis completed successfully.",
-      data: contents,
+      message: "Certifications updated successfully",
+      data: structured.data.professionalInfo
     });
   } catch (error: any) {
-    console.error("AI consult failure:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to process AI career service request.",
-    });
+    console.error("PUT /profile/certifications failed:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Keep standard REST endpoints for compatibility
+router.post("/projects", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const proj = await db.addProject(userId, req.body);
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
+    return res.status(201).json({ success: true, data: proj });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put("/projects/:id", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const proj = await db.updateProject(userId, req.params.id, req.body);
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
+    return res.status(200).json({ success: true, data: proj });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete("/projects/:id", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    await db.deleteProject(userId, req.params.id);
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
+    return res.status(200).json({ success: true, message: "Project deleted successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/certifications", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const cert = await db.addCertification(userId, req.body);
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
+    return res.status(201).json({ success: true, data: cert });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put("/certifications/:id", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const cert = await db.updateCertification(userId, req.params.id, req.body);
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
+    return res.status(200).json({ success: true, data: cert });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete("/certifications/:id", authMiddleware, studentRoleCheck, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    await db.deleteCertification(userId, req.params.id);
+    await db.calculateAtsScore(userId);
+    await db.calculateProfileCompletion(userId);
+    return res.status(200).json({ success: true, message: "Certification deleted successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

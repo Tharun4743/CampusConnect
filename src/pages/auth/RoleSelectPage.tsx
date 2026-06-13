@@ -19,7 +19,7 @@ export default function RoleSelectPage() {
       desc: "Verify college student GPAs, administer job drives, and manage HR relationships.",
       route: "/signup/tpo",
       icon: Award,
-      color: "gradient bg-sky-500",
+      color: "bg-sky-500",
       lightColor: "bg-sky-50 text-sky-600 border-sky-100",
       disabled: false,
     },
@@ -33,20 +33,10 @@ export default function RoleSelectPage() {
       lightColor: "bg-indigo-50 text-indigo-600 border-indigo-100",
       disabled: false,
     },
-    {
-      id: "admin",
-      title: "Super Administrator",
-      desc: "Created strictly via seed. Manages system configurations and invite tokens.",
-      route: "",
-      icon: Shield,
-      color: "bg-slate-500",
-      lightColor: "bg-slate-50 text-slate-400 border-slate-100",
-      disabled: true,
-    },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl w-full space-y-8">
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">

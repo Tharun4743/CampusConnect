@@ -23,7 +23,9 @@ export default function ForgotPasswordPage() {
 
       if (response.data?.success) {
         toast.success("Validation OTP dispatch completed!");
-        navigate(`/verify-otp?purpose=forgot_password&email=${encodeURIComponent(data.email)}`);
+        const devOtpParam = response.data.data?.dev_otp ? `&dev_otp=${encodeURIComponent(response.data.data.dev_otp)}` : "";
+        const expiresAtParam = response.data.data?.expires_at ? `&expires_at=${encodeURIComponent(response.data.data.expires_at)}` : "";
+        navigate(`/verify-otp?purpose=forgot_password&email=${encodeURIComponent(data.email)}${devOtpParam}${expiresAtParam}`);
       } else {
         toast.error(response.data?.message || "Password recovery error.");
       }
@@ -36,7 +38,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <Link
