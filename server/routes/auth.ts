@@ -116,7 +116,10 @@ async function dispatchSignupOtp(email: string, res?: Response) {
   const expiresAt = new Date(Date.now() + OTP_TTL_MS);
   await db.saveOtpToken(email, code, "signup", expiresAt);
   const result = await sendOtp(email, code, "signup");
-  const dev = devOtpIfAllowed(code) || (!result.success ? code : undefined);
+  const dev = devOtpIfAllowed(code);
+  if (!result.success && !dev && process.env.NODE_ENV === "production") {
+    throw new Error(`Failed to send OTP email. SMTP Error: ${result.error || "Unknown error"}`);
+  }
   if (res) setOnboardingSessionCookie(res, email);
   return { dev_otp: dev, expires_at: expiresAt.toISOString() };
 }
@@ -297,7 +300,10 @@ router.post("/signup/student", async (req, res) => {
         const expiresAt = new Date(Date.now() + OTP_TTL_MS);
         await db.saveOtpToken(normalizedEmail, code, "signup", expiresAt);
         const result = await sendOtp(normalizedEmail, code, "signup");
-        const dev = devOtpIfAllowed(code) || (!result.success ? code : undefined);
+        const dev = devOtpIfAllowed(code);
+        if (!result.success && !dev && process.env.NODE_ENV === "production") {
+          return res.status(500).json({ success: false, message: `Failed to send OTP email. SMTP Error: ${result.error || "Unknown error"}`, data: null });
+        }
         
         setOnboardingSessionCookie(res, normalizedEmail);
         return res.status(200).json({
@@ -337,7 +343,10 @@ router.post("/signup/student", async (req, res) => {
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
     await db.saveOtpToken(normalizedEmail, code, "signup", expiresAt);
       const result = await sendOtp(normalizedEmail, code, "signup");
-      const dev = devOtpIfAllowed(code) || (!result.success ? code : undefined);
+      const dev = devOtpIfAllowed(code);
+      if (!result.success && !dev && process.env.NODE_ENV === "production") {
+        return res.status(500).json({ success: false, message: `Failed to send OTP email. SMTP Error: ${result.error || "Unknown error"}`, data: null });
+      }
     setOnboardingSessionCookie(res, normalizedEmail);
       return res.status(200).json({ success: true, message: "OTP sent to your email", data: { dev_otp: dev } });
   } catch (err: any) {
@@ -395,7 +404,10 @@ router.post("/signup/student", async (req, res) => {
      const expiresAt = new Date(Date.now() + OTP_TTL_MS);
      await db.saveOtpToken(normalizedEmail, code, "signup", expiresAt);
      const otpResult = await sendOtp(normalizedEmail, code, "signup");
-     const dev = devOtpIfAllowed(code) || (!otpResult.success ? code : undefined);
+     const dev = devOtpIfAllowed(code);
+     if (!otpResult.success && !dev && process.env.NODE_ENV === "production") {
+       return res.status(500).json({ success: false, message: `Failed to send OTP email. SMTP Error: ${otpResult.error || "Unknown error"}` });
+     }
      setOnboardingSessionCookie(res, normalizedEmail);
      return res.status(200).json({ success: true, message: "OTP sent to your email", data: { dev_otp: dev } });
   } catch (error: any) {
@@ -466,7 +478,10 @@ router.post("/signup/hr", async (req, res) => {
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
     await db.saveOtpToken(normalizedEmail, code, "signup", expiresAt);
       const otpResult = await sendOtp(normalizedEmail, code, 'signup');
-      const dev = devOtpIfAllowed(code) || (!otpResult.success ? code : undefined);
+      const dev = devOtpIfAllowed(code);
+      if (!otpResult.success && !dev && process.env.NODE_ENV === "production") {
+        return res.status(500).json({ success: false, message: `Failed to send OTP email. SMTP Error: ${otpResult.error || "Unknown error"}` });
+      }
     setOnboardingSessionCookie(res, normalizedEmail);
       return res.status(200).json({ success: true, message: "OTP sent to your email", data: { dev_otp: dev } });
   } catch (error: any) {
@@ -555,11 +570,14 @@ router.post("/login", loginRateLimit, async (req, res) => {
       const expiresAt = new Date(Date.now() + OTP_TTL_MS);
       await db.saveOtpToken(email.toLowerCase().trim(), code, "login", expiresAt);
       const otpResult = await sendOtp(email.toLowerCase().trim(), code, "login");
-      const dev = devOtpIfAllowed(code) || (!otpResult.success ? code : undefined);
+      const dev = devOtpIfAllowed(code);
+      if (!otpResult.success && !dev && process.env.NODE_ENV === "production") {
+        return res.status(500).json({ success: false, message: `Failed to send OTP for login. SMTP Error: ${otpResult.error || "Unknown error"}` });
+      }
       return res.status(200).json({
         success: true,
         requireOtp: true,
-        message: otpResult.success ? "OTP sent for 2FA" : "OTP generated (SMTP failed, using staging pre-fill)",
+        message: "OTP sent for 2FA",
         data: {
           dev_otp: dev,
           expires_at: expiresAt.toISOString(),
@@ -697,16 +715,21 @@ router.post("/otp/send", otpSendRateLimit, async (req, res) => {
 
     await db.saveOtpToken(email, code, purpose, expiresAt);
     const otpResult = await sendOtp(email, code, purpose);
-    const dev = devOtpIfAllowed(code) || (!otpResult.success ? code : undefined);
+    const dev = devOtpIfAllowed(code);
+    if (!otpResult.success && !dev && process.env.NODE_ENV === "production") {
+      return res.status(500).json({
+        success: false,
+        message: `Failed to send OTP email. SMTP Error: ${otpResult.error || "Unknown error"}`,
+        debug: otpResult.error,
+      });
+    }
     if (purpose === "signup") {
       setOnboardingSessionCookie(res, email);
     }
 
     return res.status(200).json({
       success: true,
-      message: otpResult.success 
-        ? `Verification code successfully sent for ${purpose}.`
-        : `Verification code generated for ${purpose} (SMTP failed, using staging pre-fill).`,
+      message: `Verification code successfully sent for ${purpose}.`,
       data: { email, purpose, dev_otp: dev, expires_at: expiresAt.toISOString() },
     });
   } catch (error: any) {
@@ -878,7 +901,14 @@ router.post("/forgot-password", forgotPasswordRateLimit, async (req, res) => {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       await db.saveOtpToken(normalizedEmail, code, "forgot_password", expiresAt);
       const otpResult = await sendOtp(normalizedEmail, code, "forgot_password");
-      devOtp = devOtpIfAllowed(code) || (!otpResult.success ? code : undefined);
+      devOtp = devOtpIfAllowed(code);
+      if (!otpResult.success && !devOtp && process.env.NODE_ENV === "production") {
+        return res.status(500).json({
+          success: false,
+          message: `Failed to send OTP email. SMTP Error: ${otpResult.error || "Unknown error"}`,
+          debug: otpResult.error,
+        });
+      }
     }
 
     return res.status(200).json({
