@@ -167,3 +167,26 @@ body {
 .dark .sidebar::-webkit-scrollbar-thumb {
   background: #374151;
 }
+
+/* Global Watermark Overlay System */
+:root {
+  --watermark-z-index: 9999; /* Overlay method: sits on top of all backgrounds and card elements */
+}
+
+.watermark-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--watermark-z-index);
+  background-repeat: repeat;
+  opacity: 0.45; /* Increased opacity for clear visibility while remaining non-intrusive */
+  
+  /* Diagonal Repeating SVG Watermark with size 18, white fill, black border (stroke), and subtle 0.7px blur */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cfilter id='blur'%3E%3CfeGaussianBlur stdDeviation='0.7'/%3E%3C/filter%3E%3Ctext x='75' y='75' fill='%23ffffff' stroke='%23000000' stroke-width='0.5' font-family='Inter, -apple-system, BlinkMacSystemFont, sans-serif' font-size='18' font-weight='500' letter-spacing='1.5px' text-anchor='middle' transform='rotate(-45 75 75)' filter='url(%23blur)'%3ETharunkumar K%3C/text%3E%3Ctext x='225' y='225' fill='%23ffffff' stroke='%23000000' stroke-width='0.5' font-family='Inter, -apple-system, BlinkMacSystemFont, sans-serif' font-size='18' font-weight='500' letter-spacing='1.5px' text-anchor='middle' transform='rotate(-45 225 225)' filter='url(%23blur)'%3ETharunkumar K%3C/text%3E%3C/svg%3E");
+}
+
+.dark .watermark-overlay {
+  opacity: 0.15; /* Increased opacity for dark mode overlay readability */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cfilter id='blur'%3E%3CfeGaussianBlur stdDeviation='0.7'/%3E%3C/filter%3E%3Ctext x='75' y='75' fill='%23ffffff' stroke='%23000000' stroke-width='0.5' font-family='Inter, -apple-system, BlinkMacSystemFont, sans-serif' font-size='18' font-weight='500' letter-spacing='1.5px' text-anchor='middle' transform='rotate(-45 75 75)' filter='url(%23blur)'%3ETharunkumar K%3C/text%3E%3Ctext x='225' y='225' fill='%23ffffff' stroke='%23000000' stroke-width='0.5' font-family='Inter, -apple-system, BlinkMacSystemFont, sans-serif' font-size='18' font-weight='500' letter-spacing='1.5px' text-anchor='middle' transform='rotate(-45 225 225)' filter='url(%23blur)'%3ETharunkumar K%3C/text%3E%3C/svg%3E");
+}
+

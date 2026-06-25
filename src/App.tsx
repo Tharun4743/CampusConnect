@@ -16,6 +16,7 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <SocketProvider>
+            <div className="watermark-overlay" />
             <AppRoutes />
             <Toaster
             position="top-right"
