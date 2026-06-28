@@ -11,6 +11,10 @@
   </a>
 </p>
 
+> [!NOTE]
+> **Live Demo Cold Start:** Since the demo is hosted on Render's free tier, the initial page load may experience a delay of 50–90 seconds while the web service spins up. Subsequent navigation and APIs will be instantaneous.
+
+
 <p align="center">
   <img src="https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
   <img src="https://img.shields.io/badge/Vite-6.2-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite 6" />
