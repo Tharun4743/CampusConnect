@@ -72,9 +72,9 @@ export default function AdminNotificationsPage() {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <AdminNavigation />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <main className="app-main overflow-y-auto p-4 sm:p-6 lg:p-10">
         <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>

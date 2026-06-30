@@ -65,9 +65,9 @@ export default function StudentProfileViewPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
         <TPONavigation />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 min-w-0 overflow-x-hidden flex items-center justify-center p-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </main>
       </div>
@@ -80,10 +80,10 @@ export default function StudentProfileViewPage() {
   const statusColor = student.status === "active" ? "bg-green-50 text-green-700 border-green-200" : student.status === "pending" ? "bg-yellow-50 text-yellow-755 border-yellow-200" : "bg-red-50 text-red-600 border-red-200";
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <TPONavigation />
 
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <main className="app-main overflow-y-auto p-4 sm:p-6 lg:p-10">
         {/* Back Button */}
         <button
           onClick={() => navigate("/tpo/students")}
@@ -144,7 +144,7 @@ export default function StudentProfileViewPage() {
                 <BookOpen className="w-5 h-5 text-amber-500" />
                 <span>Academic Records</span>
               </h3>
-              <div className="grid grid-cols-2 gap-6 text-xs font-mono">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 text-xs font-mono">
                 <div>
                   <span className="text-slate-500">Department / Branch:</span>
                   <span className="text-slate-900 font-bold block mt-1 uppercase">{details.branch || details.department || "N/A"}</span>

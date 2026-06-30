@@ -35,11 +35,11 @@ export default function HRJobManagementPage() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <HRNavigation />
 
       {/* Main Container */}
-  <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+  <main className="app-main overflow-y-auto p-4 sm:p-6 lg:p-8">
     <div className="max-w-7xl mx-auto w-full space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -106,7 +106,7 @@ export default function HRJobManagementPage() {
                     </div>
 
                     {/* Salary and CGPA */}
-                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 mb-6 text-xs text-slate-600 font-mono">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 mb-6 text-xs text-slate-600 font-mono">
                       <div>
                         <span className="text-slate-500 block">Salary Package:</span>
                         <span className="text-slate-900 block font-bold mt-0.5">

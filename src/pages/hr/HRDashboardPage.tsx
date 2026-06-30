@@ -95,11 +95,11 @@ export default function HRDashboardPage() {
   const totalApplications = jobs.reduce((sum, j) => sum + (j.applications_count || 0), 0);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <HRNavigation />
 
       {/* Main Container */}
-      <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+      <main className="app-main overflow-y-auto p-4 sm:p-6 lg:p-8">
     <div className="max-w-7xl mx-auto w-full space-y-8">
         
         {/* Header Title block */}

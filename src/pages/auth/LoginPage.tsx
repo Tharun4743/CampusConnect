@@ -89,6 +89,7 @@ export default function LoginPage() {
     const google = (window as any).google;
     const container = document.getElementById("google-signin-button");
     if (google && container) {
+      const buttonWidth = Math.min(container.offsetWidth || 382, window.innerWidth - 48);
       google.accounts.id.initialize({
         client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "1008719970978-gp05ct427r7f551p0c0a87f551.apps.googleusercontent.com",
         callback: handleGoogleSignInResponse,
@@ -96,7 +97,7 @@ export default function LoginPage() {
       google.accounts.id.renderButton(container, {
         theme: "outline",
         size: "large",
-        width: "382",
+        width: String(Math.max(buttonWidth, 240)),
         text: "continue_with"
       });
     }
@@ -164,11 +165,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
-      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8 font-sans">
+      <div className="max-w-md w-full space-y-5 sm:space-y-6 bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
         <div className="text-center">
-          <img src={logo} alt="CampusConnect" className="mx-auto h-16 w-16 object-contain mb-4" />
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+          <img src={logo} alt="CampusConnect" className="mx-auto h-14 w-14 sm:h-16 sm:w-16 object-contain mb-3 sm:mb-4" />
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Campus Connect
           </h2>
           <p className="mt-2 text-sm text-slate-500">
@@ -274,8 +275,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex justify-center">
-          <div id="google-signin-button" className="w-full max-w-[382px] min-h-[44px]"></div>
+        <div className="flex justify-center w-full">
+          <div id="google-signin-button" className="w-full min-h-[44px]"></div>
         </div>
 
         <div className="border-t border-slate-100 pt-6 text-center">

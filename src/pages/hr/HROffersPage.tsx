@@ -89,9 +89,9 @@ export default function HROffersPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <HRNavigation />
-      <main className="flex-1 p-6 lg:p-8 space-y-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 min-w-0 overflow-x-hidden p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Offer Management</h1>
@@ -151,7 +151,7 @@ export default function HROffersPage() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: "Total Offers", value: offers.length, color: "text-emerald-600" },
             { label: "Pending", value: offers.filter(o => o.status === "pending").length, color: "text-yellow-600" },
@@ -174,7 +174,8 @@ export default function HROffersPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left whitespace-nowrap min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
                   {["Student", "Job", "Salary", "Status", "Created", "Expires"].map(h => (
@@ -199,7 +200,8 @@ export default function HROffersPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         )}
       </main>

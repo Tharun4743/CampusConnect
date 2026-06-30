@@ -81,9 +81,9 @@ export default function ApplicantsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <HRNavigation />
-      <main className="flex-1 p-6 lg:p-8 max-w-5xl mx-auto w-full">
+      <main className="app-main overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
         {/* Navigation back */}
         <button
           onClick={() => navigate("/hr/dashboard")}

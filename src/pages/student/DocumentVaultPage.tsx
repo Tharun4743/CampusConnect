@@ -163,10 +163,10 @@ export default function DocumentVaultPage() {
   const formatDate = (d: string) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <StudentNavigation />
       
-      <main className="flex-1 p-6 lg:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
+      <main className="flex-1 min-w-0 overflow-x-hidden p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
         {/* Header */}
         <div className="bg-white rounded-2xl p-6 border border-sky-100 shadow-sm">
           <h1 className="text-3xl font-bold text-gray-900">Document Vault</h1>

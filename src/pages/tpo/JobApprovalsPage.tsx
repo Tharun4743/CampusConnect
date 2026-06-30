@@ -62,9 +62,9 @@ export default function TPOJobApprovalPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <TPONavigation />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <main className="app-main overflow-y-auto p-4 sm:p-6 lg:p-10">
         <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
@@ -103,7 +103,7 @@ export default function TPOJobApprovalPage() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
                   <div className="flex items-center gap-2 text-gray-600">
                     <MapPin className="w-4 h-4" /> {job.location}
                   </div>

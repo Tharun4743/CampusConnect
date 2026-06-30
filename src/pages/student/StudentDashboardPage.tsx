@@ -154,9 +154,9 @@ export default function StudentDashboardPage() {
 
   if (metricsLoading || loadingProfile) {
     return (
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
         <StudentNavigation />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 min-w-0 overflow-x-hidden flex items-center justify-center p-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </main>
       </div>
@@ -186,9 +186,9 @@ export default function StudentDashboardPage() {
   ];
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <StudentNavigation />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Header */}
           <div className="flex items-start justify-between gap-4">

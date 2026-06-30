@@ -71,9 +71,9 @@ export default function JobDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
         <StudentNavigation />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 min-w-0 overflow-x-hidden flex items-center justify-center p-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </main>
       </div>
@@ -82,9 +82,9 @@ export default function JobDetailsPage() {
 
   if (!data?.job) {
     return (
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
         <StudentNavigation />
-        <div className="flex-1 p-6 lg:p-8 flex items-center justify-center">
+        <div className="app-main overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 flex items-center justify-center">
           <div className="bg-white p-8 rounded-2xl border border-sky-100 text-center max-w-md shadow-sm">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-950">Job Drive Not Found</h2>
@@ -121,10 +121,10 @@ export default function JobDetailsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <StudentNavigation />
 
-      <main className="flex-1 p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
+      <main className="app-main overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
         {/* Navigation back row */}
         <div className="flex items-center justify-between">
           <button
@@ -170,7 +170,7 @@ export default function JobDetailsPage() {
               </div>
 
               {/* Meta information row */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100 mt-6 text-xs text-gray-500">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100 mt-6 text-xs text-gray-500">
                 <div className="bg-sky-50/25 p-3 rounded-lg border border-sky-100">
                   <span className="text-gray-400 block mb-1">Package</span>
                   <span className="text-gray-900 font-bold text-sm block">{job.salary_package || "N/A"}</span>

@@ -61,9 +61,9 @@ export default function TPONotificationsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <TPONavigation />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <main className="app-main overflow-y-auto p-4 sm:p-6 lg:p-10">
         <div className="max-w-3xl mx-auto space-y-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2"><Bell className="w-6 h-6 text-amber-500" /> Send Notifications</h1>

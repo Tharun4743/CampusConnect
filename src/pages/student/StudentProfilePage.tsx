@@ -347,9 +347,9 @@ export default function StudentProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
         <StudentNavigation />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 min-w-0 overflow-x-hidden flex items-center justify-center p-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </main>
       </div>
@@ -362,10 +362,10 @@ export default function StudentProfilePage() {
   const projectsList = profile?.professionalInfo?.projects || [];
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <StudentNavigation />
 
-      <main className="flex-1 p-6 lg:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
+      <main className="flex-1 min-w-0 overflow-x-hidden p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
         
         {/* Workspace Title bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-sky-100 pb-5">
@@ -710,7 +710,7 @@ export default function StudentProfilePage() {
                 {/* 12th or Diploma Marks */}
                 <div className="space-y-4 p-5 bg-white rounded-2xl border border-sky-100 shadow-xs">
                   <span className="text-xs font-extrabold uppercase text-gray-700 tracking-wider block">Class 12th / Diploma Records</span>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] uppercase font-bold text-gray-700">12th Percentage (%)</label>
                       <input
@@ -789,7 +789,7 @@ export default function StudentProfilePage() {
                   <span className="text-xs font-extrabold uppercase text-gray-700 tracking-wider block flex items-center gap-1">
                     <ShieldAlert className="w-4 h-4 text-amber-500" /> Standing Arrears & History
                   </span>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] uppercase font-bold text-gray-700">Current Arrears</label>
                       <input

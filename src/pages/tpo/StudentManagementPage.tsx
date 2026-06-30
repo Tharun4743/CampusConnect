@@ -44,9 +44,9 @@ export default function TPOStudentManagementPage() {
   );
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <TPONavigation />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
@@ -66,7 +66,8 @@ export default function TPOStudentManagementPage() {
           <div className="text-center py-12 text-gray-500">Loading...</div>
         ) : (
           <div className="bg-white rounded-xl border overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left whitespace-nowrap min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Name</th>
@@ -110,7 +111,8 @@ export default function TPOStudentManagementPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         )}
         </div>

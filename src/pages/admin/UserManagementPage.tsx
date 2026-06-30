@@ -93,9 +93,9 @@ export default function UserManagementPage() {
   const pendingCount = users.filter(u => u.status === "pending").length;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex app-shell max-lg:flex-col bg-gray-50 overflow-hidden">
       <AdminNavigation />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
