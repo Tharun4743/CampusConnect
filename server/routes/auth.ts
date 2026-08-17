@@ -610,10 +610,21 @@ router.post("/google-login", async (req, res) => {
 
     // Decode and verify the ID token via Google's tokeninfo API
     const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`;
-    const googleResponse = await axios.get(tokenInfoUrl);
+    let googleResponse;
+    try {
+      googleResponse = await axios.get(tokenInfoUrl, { validateStatus: () => true });
+    } catch (netErr: any) {
+      return res.status(400).json({
+        success: false,
+        message: "Failed to reach Google token verification service."
+      });
+    }
 
     if (googleResponse.status !== 200) {
-      return res.status(400).json({ success: false, message: "Failed to verify Google credential." });
+      return res.status(400).json({
+        success: false,
+        message: googleResponse.data?.error_description || "Invalid or expired Google credential token."
+      });
     }
 
     const payload = googleResponse.data;

@@ -91,7 +91,7 @@ export default function LoginPage() {
     if (google && container) {
       const buttonWidth = Math.min(container.offsetWidth || 382, window.innerWidth - 48);
       google.accounts.id.initialize({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "1008719970978-gp05ct427r7f551p0c0a87f551.apps.googleusercontent.com",
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "682789213572-4qvbmv5b7jpslmf8avkiogaot6m2fjm7.apps.googleusercontent.com",
         callback: handleGoogleSignInResponse,
       });
       google.accounts.id.renderButton(container, {
