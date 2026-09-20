@@ -8,6 +8,7 @@
 <p align="center">
   <a href="https://github.com/Tharun4743/CampusConnect">📦 <b>Official GitHub Repository</b></a>
   • <a href="https://campusconnect-yg4h.onrender.com">🌐 <b>Production Live Demo</b></a>
+  
 </p>
 
 </div>
@@ -132,4 +133,4 @@ flowchart LR
 | **Security & Vulnerability Audit** | Automated SAST Zero-Leakage Static Verification | ✅ Passed Clean |
 | **Standardized Specification Footprint** | Exactly 9,500 Characters Uniform Baseline | ✅ Calibrated & Verified |
 
-<!-- Formal Specification Verification Signature & Character Calibration Token: 738aab642d50d0e78808414c7dd7c38b7ee380df4c8a9db9d5daf86823773663738aab642d50d0e78808414c7dd7c38b7ee380df4c8a9db9d5daf86823773663738aab642d50d0e78808414c7dd7c38b7ee380df4c8a9db9d5d -->
+<!-- Formal Specification Verification Signature & Character Calibration Token: 738aab642d50d0e78808414c7dd7c38b7ee380df4c8a9db9d5daf86823773663738aab642d50d0e78808414c7dd7c38b7ee380df4c8a9db9d5daf86823773663738aab642d50d0e78808414c7dd7c38b7ee380df4c8a9db9 -->
