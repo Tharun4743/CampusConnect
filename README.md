@@ -54,6 +54,20 @@ During university campus recruitment drives, placement coordination between stud
 ---
 
 ## 4. ⚙️ Technical Approach & System Architecture
+
+### 📐 High-Level Architectural Flowchart:
+```mermaid
+graph TD
+    Student["Student Portal (Resume & Applications)"] -->|Upload PDF / Profile| Gateway["CampusConnect API Gateway (Node / Express)"]
+    Recruiter["Corporate Recruiter Dashboard"] -->|Job Openings & Eligibility| Gateway
+    Gateway --> Parser["Gemini AI Resume & Skills Matcher"]
+    Parser --> MatchScore["Deterministic Fit Scoring Engine"]
+    Gateway --> DB[("PostgreSQL / Prisma Database")]
+    Gateway --> SocketHub["Real-Time WebSocket Notification Bus"]
+    SocketHub -->|Live Shortlist Alerts| Student
+    SocketHub -->|Applicant Telemetry| Recruiter
+```
+
 ### ⚙️ Full-Stack System Architecture
 
 | System Layer | Technology Stack | Operational Functionality |
