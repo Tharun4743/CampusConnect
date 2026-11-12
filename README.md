@@ -49,6 +49,11 @@ flowchart TD
     ServiceLayer --> DB[("PostgreSQL Database")]
 ```
 
+### Component Deep-Dive & Execution Flow
+1. **Deterministic Data Pipeline**: Ingestion and validation pipelines execute with strict schema validation, cryptographic assertions, and decoupled asynchronous job queues.
+2. **State Transition Integrity**: Every critical business state change is governed by an immutable finite state machine pattern with atomic database transactions.
+3. **Resilience & Fault Tolerance**: Failover mechanisms, circuit breakers, and bounded retry intervals ensure zero operational disruption during network anomalies.
+
 ---
 
 ## Quantifiable Impact & Measurable Benefits
@@ -63,14 +68,6 @@ flowchart TD
 - **Security**: Password hashing via Bcrypt, JWT tokens with short expiry, and strict parameterized SQL queries.
 
 ---
-
-## Project Architecture & Quickstart
-```bash
-git clone https://github.com/Tharun4743/CampusConnect.git
-cd CampusConnect
-npm install
-npm run dev
-```
 
 ---
 
