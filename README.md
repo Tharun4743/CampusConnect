@@ -4,7 +4,12 @@
 [![Node.js](https://img.shields.io/badge/Backend-Node.js_Express-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Tailwind CSS](https://img.shields.io/badge/UI-Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
+[![Internship](https://img.shields.io/badge/Internship-Neura_Global-8b5cf6?style=flat-square&logo=shield&logoColor=white)](#)
 [![License](https://img.shields.io/badge/License-Proprietary_%2F_Permission_Required-red?style=flat-square)](LICENSE.md)
+
+> [!NOTE]
+> **Neura Global Full Stack Internship Flagship Project**  
+> Architected and engineered by **Tharunkumar K** during his **Full Stack Development Internship** at **Neura Global** (Internship Certificate ID: `NG/SIP/2026/015`, Period: 01.06.2026 to 30.06.2026).
 
 **CampusConnect** is a comprehensive full-stack institutional placement and campus recruitment portal designed to manage university career placement drives, student resume indexing, company tier eligibility filters, and interview stage tracking with end-to-end data security and real-time candidate status updates.
 
@@ -82,6 +87,7 @@ flowchart TD
       <p>
         <b itemprop="jobTitle">Full Stack Developer & AI Systems Engineer</b> | <b>V.S.B. Engineering College (VSBEC)</b><br/>
         🎓 <b>B.Tech in Information Technology</b> — <b>V.S.B. Engineering College, Karur</b> (Batch 2024–2028)<br/>
+        💼 <b>Full Stack Development Intern</b> — <b>Neura Global</b> (Certificate ID: <code>NG/SIP/2026/015</code>)<br/>
         🏆 <b>2× Hackathon Winner</b> | 🥇 <b>CODE THUGS 2K26</b> | 🥉 <b>Neural Minds</b><br/>
         🇮🇳 <b>India Innovates 2026 & Odoo × NMIT 2026 Finalist</b> | 🚀 <b>SIH 2025 & 2026 Top 50</b><br/>
         🌟 Recognized for <b>Best GitHub Profile & Top Developer</b> @ <b>V.S.B. ENGINEERING COLLEGE</b>
